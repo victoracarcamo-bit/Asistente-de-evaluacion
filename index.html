@@ -18,7 +18,7 @@
     <!-- SheetJS (Librería para leer archivos .XLSX y .CSV) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- html2canvas y jsPDF (La nueva combinación perfecta para PDFs fotográficos) -->
+    <!-- html2canvas y jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -68,6 +68,7 @@
         const UserMinus = (p) => <SvgIcon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" y1="11" x2="16" y2="11"/></SvgIcon>;
         const ArrowUpDown = (p) => <SvgIcon {...p}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></SvgIcon>;
         const PanelLeft = (p) => <SvgIcon {...p}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></SvgIcon>;
+        const HelpCircle = (p) => <SvgIcon {...p}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></SvgIcon>;
 
         const TabButton = ({ active, onClick, icon, label, badge }) => (
             <button 
@@ -86,6 +87,25 @@
         );
 
         const regexAmbiguedad = /\b(por lo general|algunas veces|rara vez|casi nunca|frecuentemente|a veces|ocasionalmente|regularmente|muy|poco|mucho|casi siempre|casi todos)\b/i;
+
+        // --- SISTEMA DE DESCARGA SEGURO ---
+        const descargarArchivo = (blob, nombre) => {
+            try {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.style.display = "none";
+                a.href = url;
+                a.download = nombre;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 150);
+            } catch (error) {
+                console.error("Error al descargar el archivo:", error);
+            }
+        };
 
         const App = () => {
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -120,7 +140,7 @@
 
             const [isGeneratingCotejo, setIsGeneratingCotejo] = useState(false);
             const [isIACotejoConfigOpen, setIsIACotejoConfigOpen] = useState(false);
-            const [iaCotejoParams, setIaCotejoParams] = useState({ indicadores: 5 });
+            const [iaCotejoParams, setIaCoteParams] = useState({ indicadores: 5 });
 
             const [isGeneratingEscala, setIsGeneratingEscala] = useState(false);
             const [isIAEscalaConfigOpen, setIsIAEscalaConfigOpen] = useState(false);
@@ -133,6 +153,10 @@
             const [insightText, setInsightText] = useState('');
             const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
             const [previewData, setPreviewData] = useState(null);
+            
+            // --- NUEVO: Estado para el modal de Guardar Sesión ---
+            const [isSaveSessionModalOpen, setIsSaveSessionModalOpen] = useState(false);
+            const [sessionFileName, setSessionFileName] = useState("");
 
             const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'descending' });
 
@@ -510,17 +534,22 @@
             };
 
             const llamarIA = async (promptTexto, instruccionSistema) => {
-                const apiKey = "";
-                const activeKey = apiKey || localStorage.getItem('gemini_api_key');
+                // Obtenemos la key del entorno integrada
+                const envApiKey = ""; 
+                // Revisamos si el usuario proporcionó su propia API Key
+                const userApiKey = localStorage.getItem('gemini_api_key');
                 
-                if (!activeKey) {
-                    alert("⚠️ Falta API Key de Gemini\n\nPor favor, ingresa tu clave gratuita de Google AI Studio en la barra lateral izquierda y haz clic en 'Vincular API Key' antes de usar esta función.");
-                    throw new Error('API Key no configurada por el usuario');
-                }
-
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
+                // Usamos la llave del usuario si existe, sino la integrada por defecto.
+                const activeKey = userApiKey || envApiKey;
+                
+                // Si usamos la key del usuario, el modelo interno de preview "09-2025" no existirá en su proyecto público,
+                // por lo tanto, usamos "gemini-2.5-flash" estandar. Si usamos la key del entorno, usamos el modelo de preview.
+                const modelName = userApiKey ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
+                
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
                 
                 let response;
+                // Exponential backoff
                 for (let i = 0; i < 5; i++) {
                     try {
                         response = await fetch(url, {
@@ -532,6 +561,8 @@
                             })
                         });
                         if (response.ok) break;
+                        // Si da error 400 (Bad Request), 403 (Forbidden), 404 (Not Found), no tiene sentido reintentar
+                        if (response.status === 400 || response.status === 403 || response.status === 404) break; 
                     } catch (e) {
                         if (i === 4) throw e;
                         await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
@@ -544,15 +575,10 @@
                         const errData = await response.json();
                         errorMsg = errData.error?.message || JSON.stringify(errData);
                     } catch(e) {
-                        errorMsg = await response.text();
+                        errorMsg = response ? await response.text() : "Fallo de red al intentar conectar";
                     }
                     console.error("Error de API:", errorMsg);
-                    
-                    if (response && response.status === 400 && errorMsg.includes("API key not valid")) {
-                        alert("❌ Error: La API Key ingresada no es válida. Por favor, revisa que la hayas copiado correctamente en la barra lateral.");
-                    } else {
-                        alert(`❌ Error al conectar con la IA.\n\nDetalle técnico: ${errorMsg.substring(0, 150)}...\n\nPor favor revisa tu conexión a internet o intenta de nuevo.`);
-                    }
+                    alert(`❌ Error al conectar con la IA.\n\nDetalle técnico: ${errorMsg.substring(0, 150)}...\n\nSi configuraste tu propia API Key, asegúrate de que sea correcta.`);
                     throw new Error('Error al conectar con la API de IA');
                 }
                 
@@ -601,7 +627,7 @@ Ejemplo: [\n  ${ejemplosArreglo}\n]`;
                     }
                 } catch (error) { 
                     console.error("Error al generar rúbrica:", error); 
-                    if (error.message !== 'Error al conectar con la API de IA' && error.message !== 'API Key no configurada por el usuario') {
+                    if (error.message !== 'Error al conectar con la API de IA') {
                         alert("❌ Hubo un error procesando los datos de la IA. Intenta nuevamente.");
                     }
                 } finally { 
@@ -643,7 +669,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
                     }
                 } catch (error) { 
                     console.error(error); 
-                    if (error.message !== 'Error al conectar con la API de IA' && error.message !== 'API Key no configurada por el usuario') {
+                    if (error.message !== 'Error al conectar con la API de IA') {
                         alert("❌ Hubo un error procesando los datos de la IA. Intenta nuevamente.");
                     }
                 } finally { 
@@ -684,7 +710,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
                     }
                 } catch (error) { 
                     console.error(error); 
-                    if (error.message !== 'Error al conectar con la API de IA' && error.message !== 'API Key no configurada por el usuario') {
+                    if (error.message !== 'Error al conectar con la API de IA') {
                         alert("❌ Hubo un error procesando los datos de la IA. Intenta nuevamente.");
                     }
                 } finally { 
@@ -1140,7 +1166,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     }).join('');
                 }
 
-                // Diseño premium encapsulado (Siempre con padding interno de 40px porque ahora es una foto)
                 return `
                     <div class="pdf-container" style="font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; width: 100%; box-sizing: border-box; padding: 40px;">
                         <style>
@@ -1230,7 +1255,25 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 `;
             };
 
-            // NUEVO SISTEMA DE GENERACIÓN DE PDF ININTERRUMPIDO (Usa foto de base)
+            const agregarImagenAPDF = (pdf, imgData, canvasWidth, canvasHeight) => {
+                const imgWidth = 210; // Ancho A4 en mm
+                const pageHeight = 297; // Alto A4 en mm
+                const imgHeight = (canvasHeight * imgWidth) / canvasWidth;
+                
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                while (heightLeft > 0) {
+                    position = position - pageHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+            };
+
             const generarPDF = async (res) => {
                 const elemento = document.createElement('div');
                 elemento.style.width = '800px'; 
@@ -1247,23 +1290,15 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         backgroundColor: '#ffffff'
                     });
                     
-                    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                    const imgData = canvas.toDataURL('image/png'); // PNG para máxima nitidez de texto
                     
-                    // Calculamos el ancho y alto del PDF basándonos estrictamente en las proporciones de la imagen.
-                    // 215.9 mm es el ancho de una carta tradicional.
-                    const pdfWidth = 215.9; 
-                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
                     const { jsPDF } = window.jspdf;
-                    // Creamos una única página larguísima, del tamaño exacto del contenido.
-                    const pdf = new jsPDF({
-                        orientation: 'portrait',
-                        unit: 'mm',
-                        format: [pdfWidth, pdfHeight]
-                    });
-
-                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                    pdf.save(`Evaluacion_${res.alumno.replace(/\s+/g, '_')}_${res.fecha.replace(/\//g, '-')}.pdf`);
+                    const pdf = new jsPDF('p', 'mm', 'a4'); // Formato estándar A4
+                    
+                    agregarImagenAPDF(pdf, imgData, canvas.width, canvas.height);
+                    
+                    const pdfBlob = pdf.output('blob');
+                    descargarArchivo(pdfBlob, `Evaluacion_${res.alumno.replace(/\s+/g, '_')}_${res.fecha.replace(/\//g, '-')}.pdf`);
 
                 } catch (error) {
                     console.error("Error al generar PDF:", error);
@@ -1289,10 +1324,11 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         backgroundColor: '#ffffff'
                     });
                     const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                    const link = document.createElement('a');
-                    link.download = `Evaluacion_${res.alumno.replace(/\s+/g, '_')}_${res.fecha.replace(/\//g, '-')}.jpg`;
-                    link.href = imgData;
-                    link.click();
+                    
+                    const fetchRes = await fetch(imgData);
+                    const blob = await fetchRes.blob();
+                    
+                    descargarArchivo(blob, `Evaluacion_${res.alumno.replace(/\s+/g, '_')}_${res.fecha.replace(/\//g, '-')}.jpg`);
                 } catch (error) {
                     console.error("Error al generar JPG:", error);
                     alert("Hubo un problema al generar la imagen.");
@@ -1444,27 +1480,28 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
 
                     try {
                         const canvas = await window.html2canvas(elemento, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
                         if (formato === 'jpg') {
-                            const link = document.createElement('a');
-                            link.download = `Plantilla_${tipoInstrumento}.jpg`;
-                            link.href = imgData;
-                            link.click();
+                            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                            const fetchRes = await fetch(imgData);
+                            const blob = await fetchRes.blob();
+                            descargarArchivo(blob, `Plantilla_${tipoInstrumento}.jpg`);
                         } else {
-                            const pdfWidth = 215.9; 
-                            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                            const imgData = canvas.toDataURL('image/png'); // Usar PNG en PDF para nitidez
                             const { jsPDF } = window.jspdf;
-                            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
-                            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                            pdf.save(`Plantilla_${tipoInstrumento}.pdf`);
+                            const pdf = new jsPDF('p', 'mm', 'a4'); // Tamaño carta A4
+                            
+                            agregarImagenAPDF(pdf, imgData, canvas.width, canvas.height);
+                            
+                            const pdfBlob = pdf.output('blob');
+                            descargarArchivo(pdfBlob, `Plantilla_${tipoInstrumento}.pdf`);
                         }
                     } finally {
                         document.body.removeChild(elemento);
                     }
                 } 
                 else if (formato === 'excel') {
-                    let data, ws, wb = window.XLSX.utils.book_new(), filename;
+                    let ws, wb = window.XLSX.utils.book_new(), filename;
                     if (tipoInstrumento === 'rubrica') {
                         ws = window.XLSX.utils.aoa_to_sheet([rubricaGrid.headers, ...rubricaGrid.rows]);
                         ws['!cols'] = [{wch: 30}, ...Array(rubricaGrid.headers.length - 1).fill({wch: 25})];
@@ -1482,15 +1519,16 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         filename = `Escala_${escalaActual.titulo.replace(/\s+/g, '_')}.xlsx`;
                         window.XLSX.utils.book_append_sheet(wb, ws, "Escala de Apreciación");
                     }
-                    window.XLSX.writeFile(wb, filename);
+                    
+                    const excelBuffer = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    const blob = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+                    descargarArchivo(blob, filename);
                 }
             };
 
             const generarPDFMasivo = async () => {
                 if (resultados.length === 0) return;
                 
-                // Mostrar un pequeño aviso porque esto procesa muchas imágenes
-                const btnOriginalText = "Descargar Todos";
                 alert("Preparando reporte masivo, esto puede tomar unos segundos...");
 
                 const { jsPDF } = window.jspdf;
@@ -1507,31 +1545,33 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
 
                     try {
                         const canvas = await window.html2canvas(elemento, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                        const imgData = canvas.toDataURL('image/png');
                         
-                        const pdfWidth = 215.9; 
-                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
                         if (!pdf) {
-                            // Primera página define el tamaño base del documento
-                            pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
-                            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                            pdf = new jsPDF('p', 'mm', 'a4');
                         } else {
-                            // Las páginas siguientes se añaden con su tamaño particular, así ninguna rúbrica se corta
-                            pdf.addPage([pdfWidth, pdfHeight], 'portrait');
-                            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                            pdf.addPage();
                         }
+                        
+                        agregarImagenAPDF(pdf, imgData, canvas.width, canvas.height);
+
                     } finally {
                         document.body.removeChild(elemento);
                     }
                 }
 
                 if (pdf) {
-                    pdf.save(`Reporte_Masivo_Curso_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
+                    const pdfBlob = pdf.output('blob');
+                    descargarArchivo(pdfBlob, `Reporte_Masivo_Curso_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
                 }
             };
 
-            const exportarSesion = () => {
+            const handleOpenSaveSessionModal = () => {
+                setSessionFileName(`Sesion_Evaluacion_${new Date().toLocaleDateString().replace(/\//g, '-')}`);
+                setIsSaveSessionModalOpen(true);
+            };
+
+            const exportarSesionConfirmado = () => {
                 const data = {
                     tipoInstrumento,
                     rubricaActual, rubricaGrid,
@@ -1545,12 +1585,13 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 };
                 const jsonStr = JSON.stringify(data);
                 const blob = new Blob([jsonStr], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `Sesion_Evaluacion_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
+                
+                let finalName = sessionFileName.trim().replace(/\.json$/i, '');
+                if (!finalName) finalName = "Sesion_Evaluacion_Sin_Nombre";
+                finalName += '.json';
+
+                descargarArchivo(blob, finalName);
+                setIsSaveSessionModalOpen(false);
             };
 
             const importarSesion = (e) => {
@@ -1603,7 +1644,11 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 ws['!cols'] = [{wch: 30}, {wch: 15}, {wch: 40}, {wch: 20}, {wch: 18}, {wch: 18}, {wch: 12}, {wch: 12}, {wch: 20}, {wch: 50}];
                 const wb = window.XLSX.utils.book_new();
                 window.XLSX.utils.book_append_sheet(wb, ws, "Reporte Consolidado");
-                window.XLSX.writeFile(wb, `Reporte_Notas_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+                
+                const excelBuffer = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+                
+                descargarArchivo(blob, `Reporte_Notas_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
             };
 
             return (
@@ -1767,8 +1812,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     )}
 
                     <main className="flex-1 flex flex-col overflow-hidden">
-                        <header className="bg-white border-b border-neutral-200 px-8 pt-8 shrink-0">
-                            <div className="flex justify-between items-start mb-6">
+                        <header className="bg-white border-b border-neutral-200 px-8 pt-8 shrink-0 overflow-x-auto">
+                            <div className="flex justify-between items-start mb-6 min-w-[600px]">
                                 <div className="flex items-start gap-4">
                                     <button 
                                         onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -1785,7 +1830,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shrink-0"><CheckCircle2 size={14} /> Sistema Local</div>
                             </div>
 
-                            <nav className="flex gap-8 relative">
+                            <nav className="flex gap-8 relative min-w-[600px]">
                                 <div className="relative" onMouseLeave={() => setIsInstrumentDropdownOpen(false)}>
                                     <button onMouseEnter={() => setIsInstrumentDropdownOpen(true)} onClick={() => setIsInstrumentDropdownOpen(!isInstrumentDropdownOpen)} className={`pb-4 text-sm font-bold flex items-center gap-2 transition-all relative ${activeTab.startsWith('config') ? 'text-indigo-600' : 'text-neutral-400 hover:text-neutral-600'}`}>
                                         <FileSpreadsheet size={18}/><span>Instrumento</span><ChevronDown size={14} className={`transition-transform ${isInstrumentDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1801,11 +1846,106 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 </div>
                                 <TabButton active={activeTab === 'evaluar'} onClick={() => setActiveTab('evaluar')} icon={<GraduationCap size={18}/>} label="Evaluar Alumnos" />
                                 <TabButton active={activeTab === 'reporte'} onClick={() => setActiveTab('reporte')} icon={<BarChart3 size={18}/>} label="Reporte Consolidado" badge={resultados.length} />
+                                <TabButton active={activeTab === 'instructivo'} onClick={() => setActiveTab('instructivo')} icon={<HelpCircle size={18}/>} label="Guía de Uso" />
                             </nav>
                         </header>
 
                         <div className="p-8 max-w-6xl w-full mx-auto overflow-y-auto">
                             
+                            {/* ====== PESTAÑA: INSTRUCTIVO (NUEVA) ====== */}
+                            {activeTab === 'instructivo' && (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 flex flex-col gap-6">
+                                    <div className="bg-indigo-900 text-white rounded-2xl p-8 shadow-lg relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 -mt-4 -mr-4 text-indigo-800 opacity-50">
+                                            <BookOpen size={120} />
+                                        </div>
+                                        <div className="relative z-10">
+                                            <h2 className="text-3xl font-black mb-2">Guía de Uso Rápido</h2>
+                                            <p className="text-indigo-200 max-w-2xl text-sm leading-relaxed">
+                                                Aprende a dominar el Asistente de Evaluación en 4 simples pasos. Optimiza tu tiempo, 
+                                                evalúa en tiempo real y genera reportes automáticos alineados con el Decreto 67 de Mineduc.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Tarjeta 1 */}
+                                        <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+                                                <FileSpreadsheet size={24} />
+                                            </div>
+                                            <h3 className="font-bold text-lg text-neutral-800 mb-2">1. Configura tu Instrumento</h3>
+                                            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                                                Ve a la pestaña <b>Instrumento</b>. Tienes tres formas de crear una rúbrica, escala de apreciación o lista de cotejo:
+                                            </p>
+                                            <ul className="text-sm text-neutral-600 space-y-2">
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Manual:</b> Edita las filas y columnas directamente en la tabla.</li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Subir Archivo:</b> Carga tu propia matriz desde Excel (.xlsx o .csv).</li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Con Inteligencia Artificial:</b> Llena el curso, asignatura y unidad; la IA redactará los indicadores por ti.</li>
+                                            </ul>
+                                        </div>
+
+                                        {/* Tarjeta 2 */}
+                                        <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-4">
+                                                <GraduationCap size={24} />
+                                            </div>
+                                            <h3 className="font-bold text-lg text-neutral-800 mb-2">2. Evalúa a tus Estudiantes</h3>
+                                            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                                                Ve a la pestaña <b>Evaluar Alumnos</b>. Aquí interactúas con el instrumento para obtener la nota instantánea.
+                                            </p>
+                                            <ul className="text-sm text-neutral-600 space-y-2">
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Cargar Lista:</b> Sube un Excel con los nombres de tu curso o escríbelos a mano.</li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Calificar:</b> Haz clic en las celdas o botones de la tabla para asignar el puntaje.</li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Retroalimentación:</b> Usa el botón mágico ✨ para que la IA redacte un comentario cualitativo basado en el desempeño.</li>
+                                            </ul>
+                                        </div>
+
+                                        {/* Tarjeta 3 */}
+                                        <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center mb-4">
+                                                <BarChart3 size={24} />
+                                            </div>
+                                            <h3 className="font-bold text-lg text-neutral-800 mb-2">3. Reportes y Descargas</h3>
+                                            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                                                Todo lo que guardas viaja a la pestaña <b>Reporte Consolidado</b>, donde puedes administrar las calificaciones.
+                                            </p>
+                                            <ul className="text-sm text-neutral-600 space-y-2">
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Descargas Individuales:</b> Obtén un archivo PDF o JPG elegante para entregar al estudiante.</li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Descarga Masiva:</b> Exporta el reporte de notas en formato Excel (.xlsx).</li>
+                                                <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0"/> <b>Guardar Sesión:</b> Descarga un archivo .json para continuar tu trabajo de evaluación otro día.</li>
+                                            </ul>
+                                        </div>
+
+                                        {/* Tarjeta 4 */}
+                                        <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center mb-4">
+                                                <Sparkles size={24} />
+                                            </div>
+                                            <h3 className="font-bold text-lg text-neutral-800 mb-2">4. Activa la Inteligencia Artificial</h3>
+                                            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                                                Para usar funciones de generación de rúbricas o comentarios, debes configurar la API Key en la barra lateral (Panel de Configuración Común).
+                                            </p>
+                                            <ul className="text-sm text-neutral-600 space-y-2">
+                                                <li className="flex items-start gap-2"><AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0"/> Obtén tu clave gratuitamente en <b>Google AI Studio</b>.</li>
+                                                <li className="flex items-start gap-2"><AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0"/> Pégala en el recuadro que dice <i>"Pega tu API Key aquí..."</i> y presiona "Vincular".</li>
+                                                <li className="flex items-start gap-2"><AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0"/> Tu clave se guarda de forma segura en tu propio navegador.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="text-center p-6 mt-4">
+                                        <p className="text-sm text-neutral-400">¿Listo para empezar?</p>
+                                        <button 
+                                            onClick={() => setActiveTab('config_rubrica')}
+                                            className="mt-3 bg-neutral-800 hover:bg-neutral-900 text-white px-6 py-2.5 rounded-xl font-bold shadow-sm transition-all inline-flex items-center gap-2"
+                                        >
+                                            Ir al Instrumento <ArrowUpDown size={16} className="rotate-90"/>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* ====== PESTAÑA: CONFIG RÚBRICA ====== */}
                             {activeTab === 'config_rubrica' && (
                                 <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4">
@@ -2038,7 +2178,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                             <div className="fixed inset-0 bg-neutral-900/40 z-50 flex items-center justify-center p-4">
                                                 <div className="bg-white rounded-xl shadow-xl p-6 text-center w-64">
                                                     <h3 className="font-bold mb-4">Cantidad de Indicadores</h3>
-                                                    <input type="number" min="1" max="15" value={iaCotejoParams.indicadores} onChange={e => setIaCotejoParams({indicadores: parseInt(e.target.value)})} className="w-full p-2 mb-4 border rounded" />
+                                                    <input type="number" min="1" max="15" value={iaCotejoParams.indicadores} onChange={e => setIaCoteParams({indicadores: parseInt(e.target.value)})} className="w-full p-2 mb-4 border rounded" />
                                                     <div className="flex justify-center gap-2">
                                                         <button onClick={() => setIsIACotejoConfigOpen(false)} className="px-4 py-2 bg-neutral-100 rounded">Cancelar</button>
                                                         <button onClick={generarCotejoIA} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 font-bold text-white rounded">Generar</button>
@@ -2411,7 +2551,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                 </div>
                                             )}
                                             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                                                <button onClick={exportarSesion} className="inline-flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm border border-indigo-200 hover:bg-indigo-100 transition-colors flex-1 sm:flex-none" title="Guardar estado actual para continuar después (.json)">
+                                                <button onClick={handleOpenSaveSessionModal} className="inline-flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm border border-indigo-200 hover:bg-indigo-100 transition-colors flex-1 sm:flex-none" title="Guardar estado actual para continuar después (.json)">
                                                     <Save size={16}/> Guardar Sesión
                                                 </button>
                                                 <button onClick={() => fileInputSesionRef.current.click()} className="inline-flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm border border-indigo-200 hover:bg-indigo-100 transition-colors flex-1 sm:flex-none" title="Cargar sesión guardada previamente (.json)">
@@ -2424,6 +2564,43 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Modal Guardar Sesión */}
+                                    {isSaveSessionModalOpen && (
+                                        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-900">
+                                                    <Save size={20} className="text-indigo-600"/> Guardar Sesión de Evaluación
+                                                </h3>
+                                                <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                                                    Ponle un nombre a tu archivo de respaldo. <br/><br/>
+                                                    <i>Nota: Si tu navegador está configurado para descargar automáticamente, el archivo irá directo a tu carpeta de "Descargas" con este nombre.</i>
+                                                </p>
+                                                <div className="mb-4">
+                                                    <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5">Nombre del archivo</label>
+                                                    <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-300 rounded-lg p-1 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-shadow">
+                                                        <input
+                                                            type="text"
+                                                            value={sessionFileName}
+                                                            onChange={(e) => setSessionFileName(e.target.value)}
+                                                            className="flex-1 bg-transparent p-2 outline-none text-sm font-semibold text-neutral-700"
+                                                            autoFocus
+                                                            placeholder="Ej: Evaluacion_4B_Musica"
+                                                        />
+                                                        <span className="text-neutral-400 text-sm font-bold pr-3">.json</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end gap-3 mt-6">
+                                                    <button onClick={() => setIsSaveSessionModalOpen(false)} className="px-4 py-2 text-neutral-500 font-bold hover:bg-neutral-100 rounded-lg transition-colors text-sm">
+                                                        Cancelar
+                                                    </button>
+                                                    <button onClick={exportarSesionConfirmado} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-md flex items-center gap-2 text-sm">
+                                                        <FileDown size={16}/> Descargar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Modal Insights de Curso IA */}
                                     {insightModalOpen && (
