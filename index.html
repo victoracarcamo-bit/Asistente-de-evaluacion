@@ -513,6 +513,18 @@
                 setRubricaGrid({ ...rubricaGrid, rows: newRows });
             };
             const handleAddRow = () => setRubricaGrid({ ...rubricaGrid, rows: [...rubricaGrid.rows, Array(rubricaGrid.headers.length).fill("")] });
+            
+            // --- NUEVA FUNCIÓN: ELIMINAR FILA DE RÚBRICA ---
+            const handleRemoveRow = (rowIndex) => {
+                if (rubricaGrid.rows.length <= 1) {
+                    alert("Tu rúbrica debe tener al menos un criterio.");
+                    return;
+                }
+                const newRows = rubricaGrid.rows.filter((_, i) => i !== rowIndex);
+                setRubricaGrid({ ...rubricaGrid, rows: newRows });
+                setSeleccionesRubrica({}); // Resetea las selecciones para evitar que apunten a filas equivocadas
+            };
+
             const handleAddColumn = () => {
                 const newHeaders = [...rubricaGrid.headers, `Nivel ${rubricaGrid.headers.length}`];
                 const newRows = rubricaGrid.rows.map(row => [...row, ""]);
@@ -2065,7 +2077,34 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                 <div className="overflow-x-auto border border-neutral-200 rounded-xl">
                                                     <table className="w-full text-left border-collapse min-w-max">
                                                         <thead><tr>{rubricaGrid.headers.map((header, index) => <th key={`th-${index}`} className="p-0 border-b border-r bg-neutral-50 relative group min-w-[140px]"><input type="text" value={header} onChange={(e) => handleHeaderChange(index, e.target.value)} className="w-full p-3 bg-transparent font-bold text-xs text-center uppercase focus:bg-white" />{index > 0 && <button onClick={() => handleRemoveColumn(index)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-100 text-red-600 p-1 rounded"><Trash2 size={12} /></button>}</th>)}</tr></thead>
-                                                        <tbody>{rubricaGrid.rows.map((row, rowIndex) => <tr key={`tr-${rowIndex}`} className="border-b">{row.map((cell, colIndex) => { const isEmpty = !cell; const isAmbigua = colIndex > 0 && !isEmpty && regexAmbiguedad.test(cell); return <td key={`td-${colIndex}`} className={`p-0 border-r relative group ${isEmpty ? 'bg-red-50/40' : isAmbigua ? 'bg-red-50' : ''}`}><textarea value={cell} onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)} className={`w-full p-3 text-sm bg-transparent outline-none resize-none min-h-[80px] focus:bg-white ${isEmpty ? 'focus:ring-red-400' : isAmbigua ? 'text-red-600' : ''}`}/>{!isEmpty && colIndex > 0 && <button onClick={() => mejorarTexto(cell, rowIndex, colIndex)} className="absolute bottom-2 right-2 bg-indigo-100 text-indigo-700 p-1.5 rounded opacity-0 group-hover:opacity-100"><Sparkles size={14}/></button>}</td> })}</tr>)}</tbody>
+                                                        <tbody>
+                                                            {rubricaGrid.rows.map((row, rowIndex) => (
+                                                                <tr key={`tr-${rowIndex}`} className="border-b">
+                                                                    {row.map((cell, colIndex) => { 
+                                                                        const isEmpty = !cell; 
+                                                                        const isAmbigua = colIndex > 0 && !isEmpty && regexAmbiguedad.test(cell); 
+                                                                        return (
+                                                                            <td key={`td-${colIndex}`} className={`p-0 border-r relative group ${isEmpty ? 'bg-red-50/40' : isAmbigua ? 'bg-red-50' : ''}`}>
+                                                                                <textarea value={cell} onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)} className={`w-full p-3 text-sm bg-transparent outline-none resize-none min-h-[80px] focus:bg-white ${isEmpty ? 'focus:ring-red-400' : isAmbigua ? 'text-red-600' : ''}`}/>
+                                                                                
+                                                                                {/* NUEVO BOTÓN PARA BORRAR FILA ENTERA */}
+                                                                                {colIndex === 0 && rubricaGrid.rows.length > 1 && (
+                                                                                    <button 
+                                                                                        onClick={() => handleRemoveRow(rowIndex)} 
+                                                                                        className="absolute top-2 right-2 bg-red-100 text-red-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm hover:bg-red-200" 
+                                                                                        title="Eliminar este criterio completo"
+                                                                                    >
+                                                                                        <Trash2 size={14}/>
+                                                                                    </button>
+                                                                                )}
+
+                                                                                {!isEmpty && colIndex > 0 && <button onClick={() => mejorarTexto(cell, rowIndex, colIndex)} className="absolute bottom-2 right-2 bg-indigo-100 text-indigo-700 p-1.5 rounded opacity-0 group-hover:opacity-100"><Sparkles size={14}/></button>}
+                                                                            </td> 
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
                                                     </table>
                                                 </div>
                                             </div>
