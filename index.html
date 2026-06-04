@@ -298,6 +298,19 @@
             const [inputAlumno, setInputAlumno] = useState('');
             const [showStudentDropdown, setShowStudentDropdown] = useState(false);
             const [puntajeObtenido, setPuntajeObtenido] = useState(0);
+
+            // --- ESTADOS PARA CÓDIGOS DE ADECUACIÓN ---
+            const codigosAdecuacion = [
+                { codigo: "C1", descripcion: "Modificación de la actividad o instrumento (disminución ítems, indicadores o solicitudes)" },
+                { codigo: "C2", descripcion: "Extensión de tiempo en la ejecución" },
+                { codigo: "C3", descripcion: "Mediación de la evaluación: lectura de preguntas, instrucciones en forma personalizada." },
+                { codigo: "C4", descripcion: "Mediación de la respuesta." },
+                { codigo: "C5", descripcion: "Monitoreo en la ejecución de la actividad o evaluación." },
+                { codigo: "C6", descripcion: "Supervisión al momento de entregar la actividad o instrumento." },
+                { codigo: "C7", descripcion: "Otro procedimiento (especificar)" }
+            ];
+            const [codigoSeleccionado, setCodigoSeleccionado] = useState("");
+            const [especificacionC7, setEspecificacionC7] = useState("");
             
             const fileInputRef = useRef(null);
             const fileInputEstudiantesRef = useRef(null);
@@ -861,7 +874,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 }
             };
 
-
             const calcularNota = (puntaje, pIdeal, exig) => {
                 const p = parseFloat(puntaje) || 0;
                 const pi = parseFloat(pIdeal) || 1;
@@ -938,6 +950,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 setAlumnosSeleccionados([res.alumno]);
                 setInputAlumno('');
                 setRetroalimentacion(res.retroalimentacion || '');
+                setCodigoSeleccionado(res.codigoAdecuacion || "");
+                setEspecificacionC7(res.especificacionC7 || "");
                 setEditingId(res.id);
                 setActiveTab('evaluar');
                 window.scrollTo(0,0);
@@ -948,6 +962,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 setAlumnosSeleccionados([]);
                 setInputAlumno('');
                 setRetroalimentacion('');
+                setCodigoSeleccionado('');
+                setEspecificacionC7('');
                 setSeleccionesRubrica({});
                 setSeleccionesCotejo({});
                 setObservacionesCotejo({});
@@ -1004,6 +1020,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     fecha: new Date().toLocaleDateString(), 
                     detalles: detallesEvaluacion,
                     retroalimentacion: retroalimentacion,
+                    codigoAdecuacion: codigoSeleccionado,
+                    especificacionC7: codigoSeleccionado === 'C7' ? especificacionC7 : '',
                     selecciones: { ...currentSelecciones },
                     observaciones: { ...currentObservaciones },
                     instrumentoData: JSON.parse(JSON.stringify(currentInstrumentData))
@@ -1029,6 +1047,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                             tipoInstrumento: tipoInstrumento,
                             detalles: detallesEvaluacion,
                             retroalimentacion: retroalimentacion,
+                            codigoAdecuacion: codigoSeleccionado,
+                            especificacionC7: codigoSeleccionado === 'C7' ? especificacionC7 : '',
                             selecciones: { ...currentSelecciones },
                             observaciones: { ...currentObservaciones },
                             instrumentoData: JSON.parse(JSON.stringify(currentInstrumentData))
@@ -1058,6 +1078,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 setInputAlumno('');
                 setPuntajeObtenido(0);
                 setRetroalimentacion(''); 
+                setCodigoSeleccionado('');
+                setEspecificacionC7('');
                 setSeleccionesRubrica({}); setSeleccionesCotejo({}); setObservacionesCotejo({});
                 setSeleccionesEscala({}); setObservacionesEscala({});
                 
@@ -1194,6 +1216,18 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     </div>
                 ` : '';
 
+                // Formateo del código de adecuación
+                let adecuacionTexto = "S/C";
+                if (res.codigoAdecuacion) {
+                    const codObj = codigosAdecuacion.find(c => c.codigo === res.codigoAdecuacion);
+                    if (codObj) {
+                        adecuacionTexto = `${codObj.codigo} - ${codObj.descripcion}`;
+                        if (res.codigoAdecuacion === 'C7' && res.especificacionC7) {
+                            adecuacionTexto = `${codObj.codigo} - ${res.especificacionC7}`;
+                        }
+                    }
+                }
+
                 let headerCotejo = res.tipoInstrumento === 'cotejo' ? `
                     <th style="padding: 8px 5px; text-align: left; font-size: 12px; width: 40%; border-bottom: 2px solid #cbd5e1;">/ Criterio<br>Indicador</th>
                     <th style="padding: 8px 5px; text-align: center; font-size: 12px; width: 15%; border-bottom: 2px solid #cbd5e1;">Nivel / Estado</th>
@@ -1255,7 +1289,10 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 <tr>
                                     <td style="width: 50%; vertical-align: top; padding-right: 10px;">
                                         <p style="margin: 0 0 4px 0; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 800;">Estudiante</p>
-                                        <p style="margin: 0; font-size: 16px; font-weight: 900; color: #0f172a;">${res.alumno}</p>
+                                        <p style="margin: 0 0 10px 0; font-size: 16px; font-weight: 900; color: #0f172a;">${res.alumno}</p>
+                                        
+                                        <p style="margin: 0 0 4px 0; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 800;">Adecuación Curricular</p>
+                                        <p style="margin: 0; font-size: 11px; color: #0f172a; line-height: 1.3;">${adecuacionTexto}</p>
                                     </td>
                                     <td style="width: 50%; vertical-align: top; border-left: 1px solid #cbd5e1; padding-left: 15px;">
                                         <p style="margin: 0 0 4px 0; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 800;">Detalles del Instrumento</p>
@@ -1659,7 +1696,9 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     listaEstudiantes,
                     totalEstudiantesCargados,
                     listasGuardadas,
-                    activeSavedListId
+                    activeSavedListId,
+                    codigoSeleccionado,
+                    especificacionC7
                 };
                 const jsonStr = JSON.stringify(data);
                 const blob = new Blob([jsonStr], { type: "application/json" });
@@ -1737,13 +1776,14 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 const data = resultados.map(res => ({
                     "Estudiante": res.alumno, "Fecha": res.fecha, "Instrumento": res.instrumento,
                     "Tipo de Instrumento": res.tipoInstrumento === 'rubrica' ? 'Rúbrica' : (res.tipoInstrumento === 'cotejo' ? 'Lista de Cotejo' : 'Escala de Apreciación'),
+                    "Adecuación PIE": res.codigoAdecuacion || "S/C",
                     "Puntaje Obtenido": res.puntaje, "Puntaje Máximo": res.maximo,
                     "Logro (%)": res.maximo > 0 ? Math.round((res.puntaje / res.maximo) * 100) : 0,
                     "Nota Final": parseFloat(res.nota.toFixed(1)), "Nivel Mineduc": res.nivel,
                     "Retroalimentación": res.retroalimentacion || "-"
                 }));
                 const ws = window.XLSX.utils.json_to_sheet(data);
-                ws['!cols'] = [{wch: 30}, {wch: 15}, {wch: 40}, {wch: 20}, {wch: 18}, {wch: 18}, {wch: 12}, {wch: 12}, {wch: 20}, {wch: 50}];
+                ws['!cols'] = [{wch: 30}, {wch: 15}, {wch: 40}, {wch: 20}, {wch: 15}, {wch: 18}, {wch: 18}, {wch: 12}, {wch: 12}, {wch: 20}, {wch: 50}];
                 const wb = window.XLSX.utils.book_new();
                 window.XLSX.utils.book_append_sheet(wb, ws, "Reporte Consolidado");
                 
@@ -1764,7 +1804,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
 
             return (
                 <div className="flex flex-col md:flex-row min-h-screen bg-neutral-50 text-neutral-800 font-sans relative">
-                    {/* Modales varios... */}
+                    
+                    {/* ====== MODALES ====== */}
                     {isSaveSessionModalOpen && (
                         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                             <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-left">
@@ -1883,6 +1924,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         </div>
                     )}
                     
+                    {/* ====== SIDEBAR LATERAL ====== */}
                     {isSidebarOpen && (
                         <aside className="w-full md:w-72 bg-white border-r border-neutral-200 p-6 flex flex-col gap-8 shrink-0 overflow-y-auto">
                             <div>
@@ -1929,6 +1971,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         </aside>
                     )}
 
+                    {/* ====== PANEL PRINCIPAL ====== */}
                     <main className="flex-1 flex flex-col overflow-hidden">
                         
                         <header className="bg-white border-b border-neutral-200 px-4 md:px-8 pt-6 md:pt-8 shrink-0 relative z-50">
@@ -1949,7 +1992,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 </div>
                             </div>
 
-                            {/* BARRA DE NAVEGACIÓN SIMPLIFICADA */}
+                            {/* BARRA DE TABS */}
                             <nav className="flex gap-6 relative flex-wrap pb-1">
                                 <TabButton active={activeTab === 'config'} onClick={() => setActiveTab('config')} icon={<FileSpreadsheet size={18}/>} label="Instrumento" />
                                 <TabButton active={activeTab === 'evaluar'} onClick={() => setActiveTab('evaluar')} icon={<GraduationCap size={18}/>} label="Evaluar Alumnos" />
@@ -2110,15 +2153,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                                             <td key={`td-${colIndex}`} className={`p-0 border-r relative group ${isEmpty ? 'bg-red-50/40' : isAmbigua ? 'bg-red-50' : ''}`}>
                                                                                 <textarea value={cell} onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)} className={`w-full p-3 text-sm bg-transparent outline-none resize-none min-h-[80px] focus:bg-white ${isEmpty ? 'focus:ring-red-400' : isAmbigua ? 'text-red-600' : ''}`}/>
                                                                                 
-                                                                                {/* BOTÓN PARA BORRAR FILA ENTERA */}
                                                                                 {colIndex === 0 && rubricaGrid.rows.length > 1 && (
-                                                                                    <button 
-                                                                                        onClick={() => handleRemoveRow(rowIndex)} 
-                                                                                        className="absolute top-2 right-2 bg-red-100 text-red-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm hover:bg-red-200" 
-                                                                                        title="Eliminar este criterio completo"
-                                                                                    >
-                                                                                        <Trash2 size={14}/>
-                                                                                    </button>
+                                                                                    <button onClick={() => handleRemoveRow(rowIndex)} className="absolute top-2 right-2 bg-red-100 text-red-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm hover:bg-red-200" title="Eliminar este criterio completo"><Trash2 size={14}/></button>
                                                                                 )}
 
                                                                                 {!isEmpty && colIndex > 0 && <button onClick={() => mejorarTexto(cell, rowIndex, colIndex)} className="absolute bottom-2 right-2 bg-indigo-100 text-indigo-700 p-1.5 rounded opacity-0 group-hover:opacity-100"><Sparkles size={14}/></button>}
@@ -2282,7 +2318,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                             </div>
                                         </div>
 
-                                        {/* BLOQUE SUPERIOR (ESTUDIANTE Y PUNTAJE) */}
+                                        {/* BLOQUE SUPERIOR (ESTUDIANTE Y PUNTAJE Y CÓDIGOS) */}
                                         <div className="flex flex-col lg:flex-row gap-8 mb-8">
                                             
                                             {/* IZQUIERDA: ESTUDIANTES */}
@@ -2368,17 +2404,53 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                 </div>
                                             </div>
 
-                                            {/* DERECHA: PUNTAJE */}
-                                            <div className="w-full lg:w-64 shrink-0 flex flex-col">
-                                                <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">PUNTAJE AUTO</label>
-                                                <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-6 flex justify-between items-center h-[100px]">
-                                                    <span className="text-4xl font-black text-indigo-700">{puntajeObtenido}</span>
-                                                    <span className="text-xl font-bold text-neutral-400 text-center">/<br/>{maximoAUsar}</span>
+                                            {/* DERECHA: PUNTAJE Y CÓDIGOS DE ADECUACIÓN */}
+                                            <div className="w-full lg:w-72 shrink-0 flex flex-col gap-4">
+                                                <div>
+                                                    <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">PUNTAJE AUTO</label>
+                                                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-6 flex justify-between items-center h-[100px]">
+                                                        <span className="text-4xl font-black text-indigo-700">{puntajeObtenido}</span>
+                                                        <span className="text-xl font-bold text-neutral-400 text-center">/<br/>{maximoAUsar}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
+                                                    <label className="text-[10px] font-bold text-amber-800 uppercase mb-2 block flex items-center gap-1">
+                                                        <HelpCircle size={12}/> Código de Adecuación (PIE)
+                                                    </label>
+                                                    <select 
+                                                        value={codigoSeleccionado} 
+                                                        onChange={(e) => setCodigoSeleccionado(e.target.value)}
+                                                        className="w-full p-2.5 text-xs font-medium border border-amber-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white text-neutral-700"
+                                                    >
+                                                        <option value="">S/C (Sin Código)</option>
+                                                        {codigosAdecuacion.map(cod => (
+                                                            <option key={cod.codigo} value={cod.codigo} title={cod.descripcion}>
+                                                                {cod.codigo} - {cod.descripcion.substring(0, 40)}{cod.descripcion.length > 40 ? '...' : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    
+                                                    {codigoSeleccionado === 'C7' && (
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Especificar procedimiento..." 
+                                                            value={especificacionC7}
+                                                            onChange={(e) => setEspecificacionC7(e.target.value)}
+                                                            className="mt-2 w-full p-2 text-xs border border-amber-200 rounded-md focus:ring-2 focus:ring-amber-500 outline-none"
+                                                        />
+                                                    )}
+                                                    
+                                                    {codigoSeleccionado && codigoSeleccionado !== 'C7' && (
+                                                        <p className="text-[10px] mt-2 text-amber-700 leading-tight italic">
+                                                            {codigosAdecuacion.find(c => c.codigo === codigoSeleccionado)?.descripcion}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* TABLAS DEL INSTRUMENTO - AHORA RESPONSIVAS */}
+                                        {/* TABLAS DEL INSTRUMENTO - AHORA RESPONSIVAS (GRID) */}
                                         <div className="w-full">
                                             {tipoInstrumento === 'rubrica' && (
                                                 <div className="flex flex-col gap-6 w-full">
