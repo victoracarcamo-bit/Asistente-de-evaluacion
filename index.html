@@ -104,15 +104,39 @@
             }
         };
 
+        // --- STORAGE SEGURO PARA IFRAMES ---
+        const safeStorage = {
+            getItem: (key) => { try { return localStorage.getItem(key); } catch(e) { return null; } },
+            setItem: (key, value) => { try { localStorage.setItem(key, value); } catch(e) { } }
+        };
+
+        // --- INTERCEPTOR DE ALERTAS ---
+        window.alertCallback = null;
+        window.alert = (msg) => {
+            if (window.alertCallback) window.alertCallback(msg);
+            else console.log("Aviso:", msg);
+        };
+
         const App = () => {
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
             const [exigencia, setExigencia] = useState(60);
             const [activeTab, setActiveTab] = useState('config');
             const [resultados, setResultados] = useState([]);
 
+            const [msgBox, setMsgBox] = useState(null);
+
+            useEffect(() => {
+                window.alertCallback = (message) => setMsgBox({ type: 'alert', message });
+                return () => { window.alertCallback = null; };
+            }, []);
+
+            const customConfirm = (message, onConfirm) => {
+                setMsgBox({ type: 'confirm', message, onConfirm });
+            };
+
             const [editingId, setEditingId] = useState(null);
 
-            const [localApiKey, setLocalApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+            const [localApiKey, setLocalApiKey] = useState(() => safeStorage.getItem('gemini_api_key') || '');
             const [apiKeyStatus, setApiKeyStatus] = useState('idle');
 
             const handleSaveApiKey = () => {
@@ -120,7 +144,7 @@
                     alert("Por favor, ingresa una API Key válida primero.");
                     return;
                 }
-                localStorage.setItem('gemini_api_key', localApiKey);
+                safeStorage.setItem('gemini_api_key', localApiKey);
                 setApiKeyStatus('saved');
                 setTimeout(() => setApiKeyStatus('idle'), 3000); 
             };
@@ -320,7 +344,7 @@
             const [totalEstudiantesCargados, setTotalEstudiantesCargados] = useState(0);
             
             const [listasGuardadas, setListasGuardadas] = useState(() => {
-                try { return JSON.parse(localStorage.getItem('asistente_evaluacion_listas')) || []; }
+                try { return JSON.parse(safeStorage.getItem('asistente_evaluacion_listas')) || []; }
                 catch { return []; }
             });
             const [nombreNuevaLista, setNombreNuevaLista] = useState('');
@@ -333,7 +357,7 @@
             const [nuevoEstudianteEdicion, setNuevoEstudianteEdicion] = useState('');
 
             useEffect(() => {
-                localStorage.setItem('asistente_evaluacion_listas', JSON.stringify(listasGuardadas));
+                safeStorage.setItem('asistente_evaluacion_listas', JSON.stringify(listasGuardadas));
             }, [listasGuardadas]);
 
             const handleSaveCurrentList = () => {
@@ -358,22 +382,29 @@
             const handleLoadSavedList = (listaId) => {
                 const lista = listasGuardadas.find(l => l.id === parseInt(listaId));
                 if (!lista) return;
-                if (listaEstudiantes.length > 0 && !confirm("Esto reemplazará la lista actual de estudiantes pendientes. ¿Deseas continuar?")) return;
                 
-                setListaEstudiantes([...lista.estudiantes]);
-                setTotalEstudiantesCargados(lista.totalOriginal || lista.estudiantes.length);
-                setActiveSavedListId(lista.id);
+                const load = () => {
+                    setListaEstudiantes([...lista.estudiantes]);
+                    setTotalEstudiantesCargados(lista.totalOriginal || lista.estudiantes.length);
+                    setActiveSavedListId(lista.id);
+                };
+
+                if (listaEstudiantes.length > 0) {
+                    customConfirm("Esto reemplazará la lista actual de estudiantes pendientes. ¿Deseas continuar?", load);
+                } else {
+                    load();
+                }
             };
 
             const handleDeleteSavedList = (listaId) => {
-                if (confirm("¿Seguro que deseas eliminar esta lista guardada?")) {
+                customConfirm("¿Seguro que deseas eliminar esta lista guardada?", () => {
                     setListasGuardadas(listasGuardadas.filter(l => l.id !== parseInt(listaId)));
                     if (activeSavedListId === parseInt(listaId)) {
                         setActiveSavedListId(null);
                         setListaEstudiantes([]);
                         setTotalEstudiantesCargados(0);
                     }
-                }
+                });
             };
             
             const openEditListModal = (lista) => {
@@ -557,7 +588,7 @@
 
             const llamarIA = async (promptTexto, instruccionSistema, forceJSON = false) => {
                 const envApiKey = ""; 
-                const userApiKey = localStorage.getItem('gemini_api_key');
+                const userApiKey = safeStorage.getItem('gemini_api_key');
                 const activeKey = userApiKey || envApiKey;
                 const modelName = userApiKey ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
@@ -1760,6 +1791,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         
                         if(data.listasGuardadas) setListasGuardadas(data.listasGuardadas);
                         if(data.activeSavedListId !== undefined) setActiveSavedListId(data.activeSavedListId);
+                        if(data.codigoSeleccionado !== undefined) setCodigoSeleccionado(data.codigoSeleccionado);
+                        if(data.especificacionC7 !== undefined) setEspecificacionC7(data.especificacionC7);
                         
                         alert("Sesión restaurada correctamente. Ya puedes continuar evaluando o corrigiendo.");
                     } catch (error) {
@@ -1793,7 +1826,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 descargarArchivo(blob, `Reporte_Notas_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
             };
 
-            // Cálculos dinámicos para el footer de "Evaluar"
             let maximoAUsar = puntajeMaxRubrica;
             if (tipoInstrumento === 'cotejo') maximoAUsar = puntajeMaxCotejo;
             if (tipoInstrumento === 'escala') maximoAUsar = puntajeMaxEscala;
@@ -1806,6 +1838,28 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 <div className="flex flex-col md:flex-row min-h-screen bg-neutral-50 text-neutral-800 font-sans relative">
                     
                     {/* ====== MODALES ====== */}
+                    {msgBox && (
+                        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95">
+                                <div className={`mx-auto w-12 h-12 mb-4 rounded-full flex items-center justify-center ${msgBox.type === 'alert' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                    {msgBox.type === 'alert' ? <AlertTriangle size={24} /> : <HelpCircle size={24} />}
+                                </div>
+                                <h3 className="font-bold text-lg mb-2 text-neutral-900">
+                                    {msgBox.type === 'alert' ? 'Aviso' : 'Confirmación'}
+                                </h3>
+                                <p className="text-sm text-neutral-600 mb-6">{msgBox.message}</p>
+                                <div className="flex gap-3 justify-center">
+                                    {msgBox.type === 'confirm' && (
+                                        <button onClick={() => setMsgBox(null)} className="px-4 py-2 text-neutral-500 font-bold hover:bg-neutral-100 rounded-lg text-sm transition-colors">Cancelar</button>
+                                    )}
+                                    <button onClick={() => { if (msgBox.onConfirm) msgBox.onConfirm(); setMsgBox(null); }} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition-colors">
+                                        {msgBox.type === 'alert' ? 'Entendido' : 'Confirmar'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {isSaveSessionModalOpen && (
                         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                             <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-left">
@@ -1924,7 +1978,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         </div>
                     )}
                     
-                    {/* ====== SIDEBAR LATERAL ====== */}
+                    {}
                     {isSidebarOpen && (
                         <aside className="w-full md:w-72 bg-white border-r border-neutral-200 p-6 flex flex-col gap-8 shrink-0 overflow-y-auto">
                             <div>
@@ -1971,7 +2025,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         </aside>
                     )}
 
-                    {/* ====== PANEL PRINCIPAL ====== */}
+                    {}
                     <main className="flex-1 flex flex-col overflow-hidden">
                         
                         <header className="bg-white border-b border-neutral-200 px-4 md:px-8 pt-6 md:pt-8 shrink-0 relative z-50">
@@ -2037,7 +2091,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 </div>
                             )}
 
-                            {/* ====== PESTAÑA ÚNICA: CONFIGURACIÓN DE INSTRUMENTOS ====== */}
+                            {}
                             {activeTab === 'config' && (
                                 <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4">
                                     
@@ -2298,7 +2352,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 </div>
                             )}
 
-                            {/* ====== PESTAÑA: EVALUAR ====== */}
+                            {}
                             {activeTab === 'evaluar' && (
                                 <div className="animate-in fade-in slide-in-from-bottom-4">
                                     <div className="bg-white p-6 md:p-8 rounded-2xl border border-neutral-200 shadow-sm relative w-full">
@@ -2450,7 +2504,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                             </div>
                                         </div>
 
-                                        {/* TABLAS DEL INSTRUMENTO - AHORA RESPONSIVAS (GRID) */}
+                                        {/* TABLAS DEL INSTRUMENTO - TARJETAS RESPONSIVAS (CSS GRID) */}
                                         <div className="w-full">
                                             {tipoInstrumento === 'rubrica' && (
                                                 <div className="flex flex-col gap-6 w-full">
@@ -2581,7 +2635,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 </div>
                             )}
 
-                            {/* ====== PESTAÑA: REPORTE ====== */}
+                            {}
                             {activeTab === 'reporte' && (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 flex flex-col gap-6">
                                     <div className="bg-white p-6 md:p-8 rounded-2xl border border-neutral-200 shadow-sm">
@@ -2636,7 +2690,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                                                         <button onClick={() => generarJPG(res)} className="block w-full text-left px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-50 hover:text-indigo-600">Imagen (.jpg)</button>
                                                                                     </div>
                                                                                 </div>
-                                                                                <button onClick={() => { if(confirm(`¿Eliminar evaluación de ${res.alumno}?`)) setResultados(resultados.filter(r => r.id !== res.id)) }} className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar"><Trash2 size={18} /></button>
+                                                                                <button onClick={() => { customConfirm(`¿Eliminar evaluación de ${res.alumno}?`, () => setResultados(resultados.filter(r => r.id !== res.id))) }} className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar"><Trash2 size={18} /></button>
                                                                             </div>
                                                                         </td>
                                                                     </tr>
