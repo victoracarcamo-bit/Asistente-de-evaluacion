@@ -1963,13 +1963,22 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
 
                                         {isIAConfigOpen && (
                                             <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden p-6 text-center">
-                                                    <h3 className="font-bold text-lg mb-4">Matriz IA</h3>
-                                                    <input type="number" min="1" max="10" placeholder="Criterios" value={iaParams.criterios} onChange={e => setIaParams({...iaParams, criterios: parseInt(e.target.value)})} className="w-full p-2 mb-2 border rounded-lg" />
-                                                    <input type="number" min="2" max="7" placeholder="Niveles" value={iaParams.niveles} onChange={e => setIaParams({...iaParams, niveles: parseInt(e.target.value)})} className="w-full p-2 mb-4 border rounded-lg" />
+                                                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden p-6 text-left">
+                                                    <h3 className="font-bold text-lg mb-4 text-center">Matriz IA</h3>
+                                                    
+                                                    <div className="mb-3">
+                                                        <label className="block text-xs font-bold text-neutral-600 uppercase mb-1">Número de Criterios</label>
+                                                        <input type="number" min="1" max="10" placeholder="Criterios" value={iaParams.criterios} onChange={e => setIaParams({...iaParams, criterios: parseInt(e.target.value)})} className="w-full p-2.5 border border-neutral-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                    </div>
+
+                                                    <div className="mb-5">
+                                                        <label className="block text-xs font-bold text-neutral-600 uppercase mb-1">Cantidad de Niveles</label>
+                                                        <input type="number" min="2" max="7" placeholder="Niveles" value={iaParams.niveles} onChange={e => setIaParams({...iaParams, niveles: parseInt(e.target.value)})} className="w-full p-2.5 border border-neutral-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                    </div>
+
                                                     <div className="flex gap-2 justify-center">
-                                                        <button onClick={() => setIsIAConfigOpen(false)} className="px-4 py-2 bg-neutral-100 rounded-lg">Cancelar</button>
-                                                        <button onClick={generarRubricaIA} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors">Generar</button>
+                                                        <button onClick={() => setIsIAConfigOpen(false)} className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold rounded-lg text-sm transition-colors">Cancelar</button>
+                                                        <button onClick={generarRubricaIA} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition-colors">Generar</button>
                                                     </div>
                                                 </div>
                                             </div>
