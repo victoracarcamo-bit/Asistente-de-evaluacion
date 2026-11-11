@@ -340,133 +340,48 @@
                 try { return JSON.parse(localStorage.getItem('asistente_evaluacion_listas')) || []; }
                 catch { return []; }
             });
-            const [nombreNuevaLista, setNombreNuevaLista] = useState('');
-            const [isSavingList, setIsSavingList] = useState(false);
-            const [activeSavedListId, setActiveSavedListId] = useState(null);
             
-            const [editingListId, setEditingListId] = useState(null);
-            const [editingListNombre, setEditingListNombre] = useState('');
-            const [editingListEstudiantes, setEditingListEstudiantes] = useState([]);
-            const [nuevoEstudianteEdicion, setNuevoEstudianteEdicion] = useState('');
+            // --- ESTADOS PARA MODAL DE EDITAR CURSO DIRECTO ---
+            const [isEditCursoModalOpen, setIsEditCursoModalOpen] = useState(false);
+            const [editingCursoEstudiantes, setEditingCursoEstudiantes] = useState([]);
+            const [nuevoEstudianteDirecto, setNuevoEstudianteDirecto] = useState('');
 
             useEffect(() => {
                 localStorage.setItem('asistente_evaluacion_listas', JSON.stringify(listasGuardadas));
             }, [listasGuardadas]);
 
-            const handleSaveCurrentList = () => {
-                if (!nombreNuevaLista.trim()) { showAlert("Por favor, ingresa un nombre para la lista."); return; }
-                if (listaEstudiantes.length === 0) { showAlert("La lista actual está vacía."); return; }
-                
-                const newId = Date.now();
-                const nuevaLista = { 
-                    id: newId, 
-                    nombre: nombreNuevaLista.trim(), 
-                    estudiantes: [...listaEstudiantes], 
-                    totalOriginal: totalEstudiantesCargados 
-                };
-                
-                setListasGuardadas([...listasGuardadas, nuevaLista]);
-                setActiveSavedListId(newId);
-                setNombreNuevaLista('');
-                setIsSavingList(false);
-                showAlert(`Lista "${nuevaLista.nombre}" guardada exitosamente.`);
+            const handleOpenEditCursoModal = () => {
+                setEditingCursoEstudiantes([...listaEstudiantes]);
+                setNuevoEstudianteDirecto('');
+                setIsEditCursoModalOpen(true);
             };
 
-            const handleLoadSavedList = (listaId) => {
-                const lista = listasGuardadas.find(l => l.id === parseInt(listaId));
-                if (!lista) return;
-                
-                const executeLoad = () => {
-                    setListaEstudiantes([...lista.estudiantes]);
-                    setTotalEstudiantesCargados(lista.totalOriginal || lista.estudiantes.length);
-                    setActiveSavedListId(lista.id);
-                };
-                
-                if (listaEstudiantes.length > 0) {
-                    setConfirmState({
-                        message: "Esto reemplazará la lista actual de estudiantes pendientes. ¿Deseas continuar?",
-                        onConfirm: () => {
-                            executeLoad();
-                            setConfirmState(null);
-                        }
-                    });
-                } else {
-                    executeLoad();
-                }
-            };
-
-            const handleDeleteSavedList = (listaId) => {
-                setConfirmState({
-                    message: "¿Seguro que deseas eliminar esta lista guardada?",
-                    onConfirm: () => {
-                        setListasGuardadas(listasGuardadas.filter(l => l.id !== parseInt(listaId)));
-                        if (activeSavedListId === parseInt(listaId)) {
-                            setActiveSavedListId(null);
-                            setListaEstudiantes([]);
-                            setTotalEstudiantesCargados(0);
-                        }
-                        setConfirmState(null);
-                    }
-                });
-            };
-            
-            const openEditListModal = (lista) => {
-                setEditingListId(lista.id);
-                setEditingListNombre(lista.nombre);
-                setEditingListEstudiantes([...lista.estudiantes]);
-                setNuevoEstudianteEdicion('');
-            };
-
-            const closeEditListModal = () => {
-                setEditingListId(null);
-            };
-
-            const handleAddEstudianteEdicion = (e) => {
+            const handleAddEstudianteDirecto = (e) => {
                 if (e.key === 'Enter' || e.type === 'click') {
                     e.preventDefault();
-                    const nombre = nuevoEstudianteEdicion.trim();
-                    if (nombre !== '' && !editingListEstudiantes.includes(nombre)) {
-                        setEditingListEstudiantes([...editingListEstudiantes, nombre]);
-                        setNuevoEstudianteEdicion('');
+                    const nombre = nuevoEstudianteDirecto.trim();
+                    if (nombre !== '') {
+                        setEditingCursoEstudiantes([...editingCursoEstudiantes, nombre]);
+                        setNuevoEstudianteDirecto('');
                     }
                 }
             };
 
-            const handleRemoveEstudianteEdicion = (nombre) => {
-                setEditingListEstudiantes(editingListEstudiantes.filter(n => n !== nombre));
+            const handleUpdateEstudianteDirectoName = (index, nuevoNombre) => {
+                const updated = [...editingCursoEstudiantes];
+                updated[index] = nuevoNombre;
+                setEditingCursoEstudiantes(updated);
             };
 
-            const handleSaveEditedList = () => {
-                if (!editingListNombre.trim()) {
-                    showAlert("El nombre de la lista no puede estar vacío.");
-                    return;
-                }
-                
-                const updatedListas = listasGuardadas.map(lista => {
-                    if (lista.id === editingListId) {
-                        let oldTotalOriginal = lista.totalOriginal || lista.estudiantes.length;
-                        const diff = editingListEstudiantes.length - lista.estudiantes.length;
-                        const newTotalOriginal = Math.max(editingListEstudiantes.length, oldTotalOriginal + diff);
+            const handleRemoveEstudianteDirecto = (index) => {
+                setEditingCursoEstudiantes(editingCursoEstudiantes.filter((_, i) => i !== index));
+            };
 
-                        return {
-                            ...lista,
-                            nombre: editingListNombre.trim(),
-                            estudiantes: [...editingListEstudiantes],
-                            totalOriginal: newTotalOriginal
-                        };
-                    }
-                    return lista;
-                });
-
-                setListasGuardadas(updatedListas);
-                
-                if (activeSavedListId === editingListId) {
-                    const listaActualizada = updatedListas.find(l => l.id === editingListId);
-                    setListaEstudiantes([...listaActualizada.estudiantes]);
-                    setTotalEstudiantesCargados(listaActualizada.totalOriginal);
-                }
-
-                closeEditListModal();
+            const handleSaveEditedCursoDirecto = () => {
+                const cleanedList = editingCursoEstudiantes.map(n => n.trim()).filter(n => n !== '');
+                setListaEstudiantes(cleanedList);
+                setTotalEstudiantesCargados(cleanedList.length);
+                setIsEditCursoModalOpen(false);
             };
 
             useEffect(() => {
@@ -850,7 +765,7 @@ Reglas estrictas:
                     const prompt = `Actúa como un Coordinador Académico experto en análisis de datos educativos. Analiza los siguientes resultados de evaluaciones de todo un curso:
 ${JSON.stringify(datosSimplificados)}
 
-Genera un reporte conciso estructurado estrictamente en 3 secciones cortas:
+Genera un reporte conciso estructurado strictly en 3 secciones cortas:
 1. 🌟 Principal Fortaleza del Curso: Identifica patrones de criterios donde a la mayoría le fue muy bien.
 2. 📉 Oportunidad de Mejora General: Identifica el criterio o área que más costó a nivel grupal.
 3. 💡 Sugerencia Pedagógica: Recomienda una acción formativa o actividad rápida para hacer en la próxima clase y reforzar esa debilidad.
@@ -870,7 +785,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     setIsGeneratingInsights(false);
                 }
             };
-
 
             const calcularNota = (puntaje, pIdeal, exig) => {
                 const p = parseFloat(puntaje) || 0;
@@ -1047,14 +961,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
 
                 const nuevaListaPendientes = listaEstudiantes.filter(estudiante => !listaAEvaluar.includes(estudiante));
                 setListaEstudiantes(nuevaListaPendientes);
-                
-                if (activeSavedListId) {
-                    setListasGuardadas(prevGuardadas => prevGuardadas.map(lista => 
-                        lista.id === activeSavedListId 
-                            ? { ...lista, estudiantes: nuevaListaPendientes } 
-                            : lista
-                    ));
-                }
 
                 setAlumnosSeleccionados([]);
                 setInputAlumno('');
@@ -1129,7 +1035,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                             
                             setListaEstudiantes(nombres);
                             setTotalEstudiantesCargados(nombres.length);
-                            setActiveSavedListId(null); 
                             
                         } else { 
                             showAlert("El archivo parece estar vacío."); 
@@ -1617,8 +1522,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     resultados,
                     listaEstudiantes,
                     totalEstudiantesCargados,
-                    listasGuardadas,
-                    activeSavedListId
+                    listasGuardadas
                 };
                 const jsonStr = JSON.stringify(data);
                 const blob = new Blob([jsonStr], { type: "application/json" });
@@ -1655,7 +1559,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         }
                         
                         if(data.listasGuardadas) setListasGuardadas(data.listasGuardadas);
-                        if(data.activeSavedListId !== undefined) setActiveSavedListId(data.activeSavedListId);
                         
                         showAlert("Sesión restaurada correctamente. Ya puedes continuar evaluando o corrigiendo.");
                     } catch (error) {
@@ -1698,43 +1601,40 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         onConfirm={confirmState?.onConfirm} 
                     />
 
-                    {/* Modal para Editar Lista de Curso Guardada */}
-                    {editingListId !== null && (
+                    {/* MODAL EDITAR CURSO DIRECTO */}
+                    {isEditCursoModalOpen && (
                         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                             <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 flex flex-col max-h-[90vh]">
                                 <div className="flex justify-between items-center mb-4 border-b pb-3">
                                     <h3 className="font-bold text-lg text-indigo-700 flex items-center gap-2">
-                                        <Edit3 size={20}/> Editar Curso Guardado
+                                        <Edit3 size={20}/> Editar Curso Cargado
                                     </h3>
-                                    <button onClick={closeEditListModal} className="text-neutral-400 hover:text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-full p-1.5 transition-colors">
+                                    <button onClick={() => setIsEditCursoModalOpen(false)} className="text-neutral-400 hover:text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-full p-1.5 transition-colors">
                                         <XIcon size={18}/>
                                     </button>
                                 </div>
-                                
-                                <div className="mb-4">
-                                    <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5">Nombre del Curso</label>
-                                    <input 
-                                        type="text" 
-                                        value={editingListNombre} 
-                                        onChange={(e) => setEditingListNombre(e.target.value)} 
-                                        className="w-full p-2.5 text-sm font-semibold border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
-                                    />
-                                </div>
+
+                                {editingCursoEstudiantes.length === 0 ? (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-amber-800 text-sm font-semibold flex items-start gap-2">
+                                        <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                                        <span>Sin lista de Estudiantes! Por favor agregalos de forma manual o cargando un archivo excel o scv</span>
+                                    </div>
+                                ) : null}
 
                                 <div className="mb-4">
-                                    <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5">Añadir Nuevo Estudiante</label>
+                                    <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5">Agregar Nuevo Estudiante</label>
                                     <div className="flex gap-2">
                                         <input 
                                             type="text" 
-                                            value={nuevoEstudianteEdicion} 
-                                            onChange={(e) => setNuevoEstudianteEdicion(e.target.value)} 
-                                            onKeyDown={handleAddEstudianteEdicion}
-                                            placeholder="Nombre del estudiante..." 
+                                            value={nuevoEstudianteDirecto} 
+                                            onChange={(e) => setNuevoEstudianteDirecto(e.target.value)} 
+                                            onKeyDown={handleAddEstudianteDirecto}
+                                            placeholder="Nombre completo del estudiante..." 
                                             className="flex-1 p-2.5 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
                                         />
                                         <button 
-                                            onClick={handleAddEstudianteEdicion} 
-                                            className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-bold hover:bg-indigo-200 transition-colors flex items-center gap-1.5"
+                                            onClick={handleAddEstudianteDirecto} 
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1.5"
                                         >
                                             <UserPlus size={16}/> Añadir
                                         </button>
@@ -1744,41 +1644,46 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 <div className="flex-1 overflow-hidden flex flex-col">
                                     <div className="flex justify-between items-center mb-2">
                                         <label className="block text-xs font-bold text-neutral-500 uppercase">
-                                            Estudiantes en Lista ({editingListEstudiantes.length})
+                                            Estudiantes ({editingCursoEstudiantes.length})
                                         </label>
                                     </div>
                                     <div className="flex-1 overflow-y-auto border border-neutral-200 rounded-lg bg-neutral-50 p-2">
-                                        {editingListEstudiantes.length > 0 ? (
-                                            <ul className="space-y-1">
-                                                {editingListEstudiantes.map((estudiante, index) => (
-                                                    <li key={`edit-est-${index}`} className="flex justify-between items-center bg-white p-2 rounded border border-neutral-100 shadow-sm text-sm">
-                                                        <span className="font-medium text-neutral-700 truncate mr-2">{estudiante}</span>
+                                        {editingCursoEstudiantes.length > 0 ? (
+                                            <ul className="space-y-2">
+                                                {editingCursoEstudiantes.map((estudiante, index) => (
+                                                    <li key={`direct-est-${index}`} className="flex justify-between items-center bg-white p-2 rounded-lg border border-neutral-200 shadow-sm gap-2">
+                                                        <input 
+                                                            type="text"
+                                                            value={estudiante}
+                                                            onChange={(e) => handleUpdateEstudianteDirectoName(index, e.target.value)}
+                                                            className="flex-1 text-sm font-medium text-neutral-800 outline-none focus:bg-neutral-50 p-1 rounded border border-transparent focus:border-indigo-300"
+                                                        />
                                                         <button 
-                                                            onClick={() => handleRemoveEstudianteEdicion(estudiante)} 
+                                                            onClick={() => handleRemoveEstudianteDirecto(index)} 
                                                             className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-colors shrink-0"
                                                             title="Eliminar de la lista"
                                                         >
-                                                            <UserMinus size={16}/>
+                                                            <Trash2 size={16}/>
                                                         </button>
                                                     </li>
                                                 ))}
                                             </ul>
                                         ) : (
-                                            <p className="text-center text-neutral-400 text-sm p-4 italic">Lista vacía. Añade estudiantes arriba.</p>
+                                            <p className="text-center text-neutral-400 text-sm p-6 italic">No hay estudiantes en la lista actual.</p>
                                         )}
                                     </div>
                                 </div>
 
                                 <div className="mt-6 pt-4 border-t border-neutral-100 flex justify-end gap-3">
                                     <button 
-                                        onClick={closeEditListModal} 
-                                        className="px-4 py-2 text-neutral-500 font-bold hover:bg-neutral-100 rounded-lg transition-colors"
+                                        onClick={() => setIsEditCursoModalOpen(false)} 
+                                        className="px-4 py-2 text-neutral-500 font-bold hover:bg-neutral-100 rounded-lg transition-colors text-sm"
                                     >
                                         Cancelar
                                     </button>
                                     <button 
-                                        onClick={handleSaveEditedList} 
-                                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-md flex items-center gap-2"
+                                        onClick={handleSaveEditedCursoDirecto} 
+                                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-md flex items-center gap-2 text-sm"
                                     >
                                         <Save size={16}/> Guardar Cambios
                                     </button>
@@ -1857,8 +1762,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     )}
 
                     <main className="flex-1 flex flex-col overflow-hidden">
-                        <header className="bg-white border-b border-neutral-200 px-8 pt-8 shrink-0 overflow-x-auto">
-                            <div className="flex justify-between items-start mb-6 min-w-[600px]">
+                        <header className="bg-white border-b border-neutral-200 px-8 pt-8 shrink-0">
+                            <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-start gap-4">
                                     <button 
                                         onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -1875,14 +1780,14 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shrink-0"><CheckCircle2 size={14} /> Sistema Local</div>
                             </div>
 
-                            <nav className="flex gap-8 relative min-w-[600px]">
-                                <div className="relative" onMouseLeave={() => setIsInstrumentDropdownOpen(false)}>
+                            <nav className="flex gap-8 relative overflow-visible">
+                                <div className="relative overflow-visible" onMouseLeave={() => setIsInstrumentDropdownOpen(false)}>
                                     <button onMouseEnter={() => setIsInstrumentDropdownOpen(true)} onClick={() => { setActiveTab(`config_${tipoInstrumento}`); setIsInstrumentDropdownOpen(!isInstrumentDropdownOpen); }} className={`pb-4 text-sm font-bold flex items-center gap-2 transition-all relative ${activeTab.startsWith('config') ? 'text-indigo-600' : 'text-neutral-400 hover:text-neutral-600'}`}>
                                         <FileSpreadsheet size={18}/><span>Instrumento</span><ChevronDown size={14} className={`transition-transform ${isInstrumentDropdownOpen ? 'rotate-180' : ''}`} />
                                         {activeTab.startsWith('config') && <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-600 rounded-full" />}
                                     </button>
                                     {isInstrumentDropdownOpen && (
-                                        <div className="absolute top-full left-0 mt-0 w-56 bg-white border border-neutral-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col py-2 animate-in fade-in slide-in-from-top-2">
+                                        <div className="absolute top-full left-0 mt-0 w-56 bg-white border border-neutral-200 shadow-xl rounded-xl z-50 flex flex-col py-2 animate-in fade-in slide-in-from-top-2">
                                             <button onClick={() => { setActiveTab('config_rubrica'); setTipoInstrumento('rubrica'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_rubrica' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><FileSpreadsheet size={16} /> Rúbrica</button>
                                             <button onClick={() => { setActiveTab('config_escala'); setTipoInstrumento('escala'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_escala' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><SlidersHorizontal size={16} /> Escala de Apreciación</button>
                                             <button onClick={() => { setActiveTab('config_cotejo'); setTipoInstrumento('cotejo'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_cotejo' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><ListTodo size={16} /> Lista de Cotejo</button>
@@ -2299,41 +2204,15 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                         </label>
                                                         
                                                         <div className="flex flex-wrap items-center gap-2">
-                                                            {/* SELECTOR DE LISTAS GUARDADAS */}
-                                                            {listasGuardadas.length > 0 && (
-                                                                <div className="flex items-center gap-1 relative group z-20">
-                                                                    <select 
-                                                                        value="" 
-                                                                        onChange={(e) => { 
-                                                                            if (e.target.value) handleLoadSavedList(e.target.value); 
-                                                                        }}
-                                                                        className="text-[10px] font-bold text-neutral-600 bg-white border border-neutral-200 px-2 py-1.5 rounded outline-none cursor-pointer hover:bg-neutral-50 min-w-[150px]"
-                                                                    >
-                                                                        <option value="">📂 Mis Cursos Guardados...</option>
-                                                                        {listasGuardadas.map(l => (
-                                                                            <option key={l.id} value={l.id}>{l.nombre} ({l.estudiantes.length} pend.)</option>
-                                                                        ))}
-                                                                    </select>
-                                                                    <div className="cursor-pointer p-1.5 rounded hover:bg-neutral-100 border border-transparent hover:border-neutral-200 transition-colors">
-                                                                        <Settings size={14} className="text-neutral-400" />
-                                                                    </div>
-                                                                    <div className="absolute top-full right-0 mt-1 w-64 bg-white border border-neutral-200 shadow-xl rounded-lg hidden group-hover:block p-2">
-                                                                        <h4 className="text-[10px] font-bold uppercase text-neutral-400 mb-1 border-b pb-1">Gestionar Cursos</h4>
-                                                                        {listasGuardadas.map(l => (
-                                                                            <div key={`del-${l.id}`} className="flex justify-between items-center text-[10px] py-2 border-b last:border-0 border-neutral-100 group/item hover:bg-neutral-50 px-1 rounded transition-colors">
-                                                                                <div className="flex flex-col overflow-hidden pr-2 flex-1">
-                                                                                    <span className="font-bold text-neutral-700 truncate" title={l.nombre}>{l.nombre}</span>
-                                                                                    <span className="text-neutral-400">{l.estudiantes.length} alumnos pendientes</span>
-                                                                                </div>
-                                                                                <div className="flex gap-1">
-                                                                                    <button type="button" onClick={() => openEditListModal(l)} className="text-indigo-500 hover:bg-indigo-50 p-1.5 rounded transition-colors" title="Editar Estudiantes"><Edit3 size={12} /></button>
-                                                                                    <button type="button" onClick={() => handleDeleteSavedList(l.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors" title="Eliminar Curso"><Trash2 size={12} /></button>
-                                                                                </div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
+                                                            {/* BOTÓN EDITAR CURSO DIRECTO */}
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={handleOpenEditCursoModal}
+                                                                className="text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded transition-colors flex items-center gap-1 border border-indigo-200 shadow-sm"
+                                                                title="Editar la lista del curso cargado"
+                                                            >
+                                                                <Edit3 size={12} /> Editar Curso
+                                                            </button>
                                                             
                                                             <button 
                                                                 type="button" 
@@ -2346,38 +2225,6 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                             <input type="file" accept=".csv, .xlsx" ref={fileInputEstudiantesRef} onChange={handleFileUploadEstudiantes} className="hidden" />
                                                         </div>
                                                     </div>
-
-                                                    {/* INTERFAZ PARA GUARDAR/SINCRONIZAR LA LISTA ACTUAL */}
-                                                    {listaEstudiantes.length > 0 && !editingId && (
-                                                        <div className={`mb-3 p-2 rounded-lg border flex flex-wrap items-center gap-2 transition-colors ${activeSavedListId ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50/50 border-indigo-100'}`}>
-                                                            {activeSavedListId ? (
-                                                                <div className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 w-full">
-                                                                    <CheckCircle2 size={14} /> 
-                                                                    Sincronizando progreso con curso: "{listasGuardadas.find(l => l.id === activeSavedListId)?.nombre}"
-                                                                    <button type="button" onClick={() => setActiveSavedListId(null)} className="ml-auto text-emerald-600 hover:text-emerald-800 underline">Desvincular</button>
-                                                                </div>
-                                                            ) : (
-                                                                !isSavingList ? (
-                                                                    <button type="button" onClick={() => setIsSavingList(true)} className="text-[10px] font-bold text-indigo-600 flex items-center gap-1 hover:underline w-full">
-                                                                        <Save size={12} /> Guardar este curso para evaluar en varias sesiones
-                                                                    </button>
-                                                                ) : (
-                                                                    <div className="flex flex-wrap items-center gap-2 w-full">
-                                                                        <input 
-                                                                            type="text" 
-                                                                            value={nombreNuevaLista} 
-                                                                            onChange={(e) => setNombreNuevaLista(e.target.value)} 
-                                                                            placeholder="Nombre (Ej: 4to Medio A)" 
-                                                                            className="text-[10px] p-1.5 border rounded outline-none flex-1 min-w-[120px]"
-                                                                            autoFocus
-                                                                        />
-                                                                        <button type="button" onClick={handleSaveCurrentList} className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded font-bold hover:bg-indigo-700">Guardar</button>
-                                                                        <button type="button" onClick={() => setIsSavingList(false)} className="text-[10px] text-neutral-500 hover:text-neutral-700 font-bold px-2 py-1.5">Cancelar</button>
-                                                                    </div>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    )}
                                                     
                                                     {/* Input Multiselección (Pills) */}
                                                     <div className={`w-full p-2 border ${editingId ? 'border-amber-400 ring-2 ring-amber-100' : 'border-neutral-200'} rounded-xl bg-white flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-indigo-500 transition-shadow min-h-[50px] items-center`}>
@@ -2407,7 +2254,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                         </div>
                                                     </div>
                                                     
-                                                    {/* ✨ NUEVA BARRA DE PROGRESO DE LISTA ✨ */}
+                                                    {/* BARRA DE PROGRESO DE LISTA */}
                                                     {totalEstudiantesCargados > 0 && !editingId && (
                                                         <div className="mt-3 bg-neutral-50 p-2.5 rounded-lg border border-neutral-200">
                                                             <div className="flex justify-between items-center text-[10px] font-bold text-neutral-500 uppercase mb-1.5">
@@ -2522,7 +2369,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                                 </div>
                                             )}
 
-                                            {/* ✨ GENERADOR DE RETROALIMENTACIÓN IA ✨ */}
+                                            {/* GENERADOR DE RETROALIMENTACIÓN IA */}
                                             <div className={`bg-indigo-50/50 p-5 rounded-2xl border ${editingId ? 'border-amber-200' : 'border-indigo-100'} mt-6 mb-6 transition-colors`}>
                                                 <div className="flex justify-between items-center mb-3">
                                                     <label className="block text-xs font-bold text-indigo-900 uppercase flex items-center gap-2">
