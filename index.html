@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asistente de Evaluación · Studio 7.0</title>
+    <title>Asistente de Evaluación · Studio 7.1</title>
     <meta name="theme-color" content="#4338ca">
     <meta name="description" content="Crea, corrige y exporta evaluaciones escolares. Herramienta docente con IA y respaldo local.">
     <style>
@@ -24,6 +24,13 @@
         .studio-steps span.active { border-color: #a5b4fc; color:#4338ca; background:#eef2ff; }
         .studio-canvas { background:white; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px #151d370d; }
         .studio-identity { border: 1px solid #e2e8f0; border-radius: 10px; background:#f8fafc; padding:12px; }
+        .instr-editor:empty::before { content: attr(data-placeholder); color: #9ca3af; pointer-events: none; }
+        .instr-editor { min-height: 104px; line-height: 1.65; white-space: pre-wrap; overflow-wrap:anywhere; }
+        .instr-editor ul, .instrucciones-formato ul { list-style: disc; padding-left: 1.4rem; margin: .35rem 0; }
+        .instr-editor ol, .instrucciones-formato ol { list-style: decimal; padding-left: 1.4rem; margin: .35rem 0; }
+        .instr-editor p, .instrucciones-formato p { margin: .3rem 0; }
+        .instr-editor u, .instrucciones-formato u { text-decoration: underline; text-underline-offset: 2px; }
+        .instrucciones-formato { overflow-wrap:anywhere; line-height: 1.65; }
         @media (max-width: 767px) { .studio-toolbar { position: static; } .studio-header { padding:18px 16px 0 !important; } .studio-content { padding:16px !important; } .studio-header nav { gap:14px !important; overflow-x:auto !important; overflow-y:visible; scrollbar-width:thin; } .studio-header nav button { white-space: nowrap; } }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration:.01ms !important; animation-duration:.01ms !important; scroll-behavior:auto !important; } }
         @media print { .studio-toolbar, button { display:none !important; } }
@@ -174,6 +181,94 @@
             </div>
         );
 
+        // --- EDITOR DE INSTRUCCIONES: FORMATO CONTROLADO, SIN HTML ARBITRARIO ---
+        const escaparTextoInstrucciones = (valor) => String(valor ?? '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        const sanitizarInstruccionesHTML = (entrada) => {
+            const doc = new DOMParser().parseFromString(String(entrada ?? ''), 'text/html');
+            const limpiar = (nodo) => {
+                if (nodo.nodeType === 3) return escaparTextoInstrucciones(nodo.nodeValue);
+                if (nodo.nodeType !== 1) return '';
+                const tag = nodo.tagName.toLowerCase();
+                if (['script', 'style', 'iframe', 'object', 'embed', 'svg', 'img', 'form', 'video', 'audio', 'math', 'link'].includes(tag)) return '';
+                if (tag === 'br') return '<br>';
+                let contenido = Array.from(nodo.childNodes).map(limpiar).join('');
+                // Algunos navegadores generan SPAN con estilos en lugar de B/I/U.
+                const peso = (nodo.style?.fontWeight || '').toLowerCase();
+                const decoracion = (nodo.style?.textDecoration || '').toLowerCase();
+                if (tag === 'b' || tag === 'strong' || peso === 'bold' || /^(600|700|800|900)$/.test(peso)) contenido = `<strong>${contenido}</strong>`;
+                if (tag === 'i' || tag === 'em' || nodo.style?.fontStyle === 'italic') contenido = `<em>${contenido}</em>`;
+                if (tag === 'u' || decoracion.includes('underline')) contenido = `<u>${contenido}</u>`;
+                if (['p', 'div', 'ul', 'ol', 'li'].includes(tag)) contenido = `<${tag}>${contenido}</${tag}>`;
+                return contenido;
+            };
+            return Array.from(doc.body.childNodes).map(limpiar).join('');
+        };
+
+        const obtenerInstruccionesHTMLMultiple = (instrumento) => {
+            if (typeof instrumento.instruccionesHtml === 'string')
+                return sanitizarInstruccionesHTML(instrumento.instruccionesHtml);
+            return escaparTextoInstrucciones(instrumento.instrucciones || '').replace(/\r?\n/g, '<br>');
+        };
+
+        const EditorInstruccionesMultiple = ({ html, onChange }) => {
+            const editableRef = useRef(null);
+            const ultimoHTML = useRef(null);
+            useEffect(() => {
+                if (editableRef.current && ultimoHTML.current !== html) {
+                    editableRef.current.innerHTML = sanitizarInstruccionesHTML(html);
+                    ultimoHTML.current = html;
+                }
+            }, [html]);
+            const emitirCambios = () => {
+                if (!editableRef.current) return;
+                const nuevoHTML = editableRef.current.innerHTML;
+                ultimoHTML.current = nuevoHTML;
+                onChange(nuevoHTML, editableRef.current.innerText || '');
+            };
+            const aplicarFormato = (comando) => {
+                if (!editableRef.current) return;
+                editableRef.current.focus();
+                document.execCommand('styleWithCSS', false, false);
+                document.execCommand(comando, false, null);
+                emitirCambios();
+            };
+            const acciones = [
+                { nombre:'Negrita', signo:<strong>N</strong>, comando:'bold' },
+                { nombre:'Subrayado', signo:<u>S</u>, comando:'underline' },
+                { nombre:'Cursiva', signo:<em>C</em>, comando:'italic' },
+                { nombre:'Lista con viñetas', signo:'• Lista', comando:'insertUnorderedList' },
+                { nombre:'Lista numerada', signo:'1. Lista', comando:'insertOrderedList' },
+                { nombre:'Quitar formato', signo:'Borrar formato', comando:'removeFormat' }
+            ];
+            return (
+                <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:ring-indigo-500">
+                    <div role="toolbar" aria-label="Formato de instrucciones" className="flex gap-1 flex-wrap items-center bg-slate-50 border-b border-slate-200 px-2 py-2">
+                        {acciones.map(accion => (
+                            <button key={accion.comando} type="button" title={accion.nombre} aria-label={accion.nombre}
+                                onMouseDown={e => e.preventDefault()} onClick={() => aplicarFormato(accion.comando)}
+                                className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 border border-transparent hover:border-indigo-200 hover:bg-indigo-50 rounded-lg focus-visible:outline-indigo-600">
+                                {accion.signo}
+                            </button>
+                        ))}
+                    </div>
+                    <div ref={editableRef} contentEditable suppressContentEditableWarning
+                        role="textbox" aria-label="Instrucciones para estudiantes" aria-multiline="true"
+                        data-placeholder="Escribe las instrucciones de la evaluación…"
+                        onInput={emitirCambios}
+                        onPaste={e => {
+                            e.preventDefault();
+                            document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+                            emitirCambios();
+                        }}
+                        className="instr-editor w-full px-4 py-3 text-sm text-slate-800 focus:outline-none" />
+                    <div className="text-[11px] text-slate-500 bg-slate-50 border-t border-slate-100 px-3 py-2">Selecciona el texto que deseas destacar y utiliza las herramientas. El formato se conservará en PDF, JPG y la vista previa.</div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [showInitialPopup, setShowInitialPopup] = useState(true);
             const [autoGuardado, setAutoGuardado] = useState(() => { try { return localStorage.getItem('ae_autoguardado_v7') !== 'off'; } catch { return false; } });
@@ -237,6 +332,7 @@
                 titulo: 'Selección Multiple',
                 objetivo: '',
                 instrucciones: 'Lee atentamente cada pregunta. Marca solo una alternativa por pregunta de selección múltiple y responde las preguntas de desarrollo con claridad.',
+                instruccionesHtml: 'Lee atentamente cada pregunta. Marca solo una alternativa por pregunta de selección múltiple y responde las preguntas de desarrollo con claridad.',
                 lineasDesarrollo: 6,
                 mostrarPuntajes: true,
                 formatoPapel: 'a4',
@@ -247,7 +343,7 @@
             });
             const [multipleSeleccion, setMultipleSeleccion] = useState([]);
             const [multipleDesarrollo, setMultipleDesarrollo] = useState([]);
-            const [iaMultipleParams, setIaMultipleParams] = useState({ seleccion: 5, alternativas: 4, desarrollo: 2 });
+            const [iaMultipleParams, setIaMultipleParams] = useState({ seleccion: 5, alternativas: 4, desarrollo: 2, incluirImagenes: false, preguntasConImagen: 2 });
             const [modoGeneracionMultiple, setModoGeneracionMultiple] = useState('reemplazar');
             const [isIAMultipleConfigOpen, setIsIAMultipleConfigOpen] = useState(false);
             const [isGeneratingMultiple, setIsGeneratingMultiple] = useState(false);
@@ -822,13 +918,15 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
                 enunciado: '',
                 alternativas: Array.from({ length: cantidad }, () => ''),
                 correcta: 0,
-                explicacion: '', puntaje: 1
+                explicacion: '', puntaje: 1,
+                imagenSrc: '', imagenAlt: '', descripcionImagen: '', origenImagen: ''
             });
             const crearDesarrolloMultiple = () => ({
                 id: `${Date.now()}-${Math.random()}`,
                 enunciado: '',
                 respuestaEsperada: '',
-                criterios: '', puntaje: 5
+                criterios: '', puntaje: 5,
+                imagenSrc: '', imagenAlt: '', descripcionImagen: '', origenImagen: ''
             });
             const editarMultipleSeleccion = (id, cambios) =>
                 setMultipleSeleccion(prev => prev.map(p => p.id === id ? { ...p, ...cambios } : p));
@@ -860,6 +958,91 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
             };
             const editarMultipleDesarrollo = (id, cambios) =>
                 setMultipleDesarrollo(prev => prev.map(p => p.id === id ? { ...p, ...cambios } : p));
+
+            const normalizarSVGIA = (contenido) => {
+                if (typeof contenido !== 'string') return '';
+                const match = contenido.match(/<svg[\s\S]*?<\/svg>/i);
+                if (!match) return '';
+                return match[0]
+                    .replace(/<\/?(?:script|foreignObject)[^>]*>/gi, '')
+                    .replace(/\son\w+="[^"]*"/gi, '')
+                    .replace(/\son\w+='[^']*'/gi, '');
+            };
+            const svgADataURL = (svg) => svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : '';
+            const crearSVGPedagogicoBase = (titulo, descripcion) => {
+                const seguroTitulo = escaparMultipleHTML(titulo || 'Recurso visual');
+                const lineas = (String(descripcion || '').replace(/\s+/g,' ').trim().match(/.{1,60}(?:\s|$)/g) || ['Observa la imagen y responde.']).slice(0,4);
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" rx="24" fill="#f8fafc"/><rect x="18" y="18" width="604" height="324" rx="20" fill="#fff" stroke="#cbd5e1" stroke-width="2"/><rect x="40" y="48" width="170" height="110" rx="18" fill="#eef2ff"/><circle cx="97" cy="103" r="30" fill="#c7d2fe"/><path d="M150 130l18-20 23 26" fill="none" stroke="#6366f1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><rect x="248" y="52" width="330" height="22" rx="11" fill="#0f172a" opacity="0.92"/><text x="264" y="68" fill="#fff" font-family="Arial, sans-serif" font-size="16" font-weight="700">${seguroTitulo}</text>${lineas.map((linea,idx)=>`<text x="248" y="${102 + idx*32}" fill="#334155" font-family="Arial, sans-serif" font-size="19">${escaparMultipleHTML(linea.trim())}</text>`).join('')}</svg>`;
+            };
+            const crearSVGTexto = (titulo, descripcion) => {
+                const seguroTitulo = escaparMultipleHTML(titulo || 'Recurso visual');
+                const lineas = (String(descripcion || '').replace(/\s+/g,' ').trim().match(/.{1,62}(?:\s|$)/g) || ['Observa la imagen y responde.']).slice(0,5);
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" rx="24" fill="#f8fafc"/><rect x="18" y="18" width="604" height="324" rx="20" fill="#fff" stroke="#cbd5e1" stroke-width="2"/><rect x="40" y="48" width="170" height="110" rx="18" fill="#eef2ff"/><circle cx="97" cy="103" r="30" fill="#c7d2fe"/><path d="M150 130l18-20 23 26" fill="none" stroke="#6366f1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><rect x="248" y="52" width="330" height="22" rx="11" fill="#0f172a" opacity="0.92"/><text x="264" y="68" fill="#fff" font-family="Arial, sans-serif" font-size="16" font-weight="700">${seguroTitulo}</text>${lineas.map((linea,idx)=>`<text x="248" y="${102 + idx*34}" fill="#334155" font-family="Arial, sans-serif" font-size="20">${escaparMultipleHTML(linea.trim())}</text>`).join('')}<text x="248" y="298" fill="#6366f1" font-family="Arial, sans-serif" font-size="15" font-weight="700">Imagen pedagógica generada con IA</text></svg>`;
+            };
+            const procesarImagenIAPregunta = (registro, tituloFallback = 'Recurso visual') => {
+                const svg = normalizarSVGIA(registro?.svgImagen || registro?.imagenSvg || '');
+                const descripcion = typeof registro?.descripcionImagen === 'string' ? registro.descripcionImagen.trim() : '';
+                const alt = typeof registro?.imagenAlt === 'string' && registro.imagenAlt.trim() ? registro.imagenAlt.trim() : (descripcion || tituloFallback);
+                const finalSvg = svg || (descripcion ? crearSVGTexto(tituloFallback, descripcion) : '');
+                return {
+                    imagenSrc: svgADataURL(finalSvg),
+                    imagenAlt: alt,
+                    descripcionImagen: descripcion,
+                    origenImagen: finalSvg ? 'ia' : ''
+                };
+            };
+            const leerImagenDataURL = (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target?.result || '');
+                reader.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+                reader.readAsDataURL(file);
+            });
+            const actualizarPreguntaConImagen = (tipo, id, cambios) => {
+                if (tipo === 'seleccion') editarMultipleSeleccion(id, cambios);
+                else editarMultipleDesarrollo(id, cambios);
+            };
+            const manejarImagenManualPregunta = async (tipo, id, e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                if (!['image/png','image/jpeg','image/jpg','image/webp'].includes(file.type)) {
+                    showAlert('La imagen debe estar en formato PNG, JPG o WEBP.');
+                    return;
+                }
+                if (file.size > 6 * 1024 * 1024) {
+                    showAlert('La imagen debe pesar menos de 6 MB.');
+                    return;
+                }
+                try {
+                    const src = await leerImagenDataURL(file);
+                    actualizarPreguntaConImagen(tipo, id, { imagenSrc: src, origenImagen: 'manual' });
+                } catch (error) {
+                    showAlert(error.message || 'No se pudo cargar la imagen.');
+                }
+            };
+            const quitarImagenPregunta = (tipo, id) => actualizarPreguntaConImagen(tipo, id, { imagenSrc: '', imagenAlt: '', descripcionImagen: '', origenImagen: '' });
+            const generarImagenPreguntaIA = async (tipo, id) => {
+                if (regenerandoPregunta) return;
+                const lista = tipo === 'seleccion' ? multipleSeleccion : multipleDesarrollo;
+                const pregunta = lista.find(q => q.id === id);
+                if (!pregunta || !pregunta.enunciado?.trim()) { showAlert('Escribe primero el enunciado de la pregunta antes de generar una imagen.'); return; }
+                setRegenerandoPregunta(`img-${id}`);
+                try {
+                    const prompt = `Crea únicamente un objeto JSON válido en español con este esquema: {"descripcionImagen":"...","imagenAlt":"...","svgImagen":"<svg ...>...</svg>"}. La imagen será un apoyo pedagógico para una pregunta escolar de ${curriculumParams.asignatura || 'asignatura escolar'} en ${curriculumParams.curso || 'curso escolar'}. Pregunta: ${pregunta.enunciado}. ${tipo === 'seleccion' ? `Alternativas: ${(pregunta.alternativas || []).join(' | ')}.` : ''} Genera un SVG SIMPLE, limpio, didáctico, sin scripts ni recursos externos, fondo claro, tamaño 640x360, con contenido útil para responder la pregunta.`;
+                    const salida = await llamarIA(prompt, 'Devuelves solamente JSON válido con una descripción breve y un SVG educativo simple.');
+                    const inicio = salida.indexOf('{'); const fin = salida.lastIndexOf('}');
+                    if (inicio < 0 || fin <= inicio) throw new Error('La IA no devolvió un JSON válido.');
+                    const data = JSON.parse(salida.slice(inicio, fin + 1));
+                    const imagen = procesarImagenIAPregunta(data, pregunta.enunciado);
+                    if (!imagen.imagenSrc) throw new Error('La IA no logró generar una imagen utilizable.');
+                    actualizarPreguntaConImagen(tipo, id, imagen);
+                } catch (error) {
+                    if (error.message !== 'Error al conectar con la API de IA') showAlert(`No se pudo generar la imagen: ${error.message}`);
+                } finally {
+                    setRegenerandoPregunta(null);
+                }
+            };
+            const renderImagenPreguntaHTML = (pregunta, compacto = false) => pregunta?.imagenSrc ? `<figure style="margin:${compacto ? '8px' : '12px'} 0 ${compacto ? '10px' : '14px'}"><img src="${pregunta.imagenSrc}" alt="${escaparMultipleHTML(pregunta.imagenAlt || pregunta.descripcionImagen || 'Imagen de apoyo')}" style="display:block;max-width:100%;width:${compacto ? '72%' : '100%'};max-height:${compacto ? '180px' : '260px'};object-fit:contain;border:1px solid #dbe4f0;border-radius:14px;background:#fff;padding:8px;margin:0 auto"/>${pregunta.descripcionImagen ? `<figcaption style="font-size:12px;color:#64748b;text-align:center;margin-top:6px">${escaparMultipleHTML(pregunta.descripcionImagen)}</figcaption>` : ''}</figure>` : '';
 
             const actualizarMultipleActual = (cambios) => setMultipleActual(prev => ({ ...prev, ...cambios }));
             const obtenerCursoEncabezadoMultiple = () => (multipleActual.cursoEncabezado || curriculumParams.curso || '').trim();
@@ -899,19 +1082,28 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
                 const titulo = escaparMultipleHTML(multipleActual.titulo || 'Selección Multiple');
                 let institucional = '';
                 if (multipleActual.usarEncabezado) {
+                    // Mismo criterio que en PDF: logo y tipografía institucional 25 % menores.
                     const logo = multipleActual.logoInstitucion
-                        ? `<img src="${multipleActual.logoInstitucion}" alt="Logo institucional" style="width:86px;height:86px;object-fit:contain;display:block"/>`
-                        : '<div style="width:86px;height:86px"></div>';
+                        ? `<img src="${multipleActual.logoInstitucion}" alt="Logo institucional" style="width:64.5px;height:64.5px;object-fit:contain;display:block"/>`
+                        : '<div style="width:64.5px;height:64.5px"></div>';
                     const lineas = obtenerLineasProfesorMultiple();
-                    institucional = `<div style="display:flex;align-items:flex-start;gap:20px;margin-bottom:46px"><div style="flex:0 0 90px">${logo}</div><div style="font-size:14px;line-height:1.55;color:#1e293b;flex:1;overflow-wrap:anywhere">${lineas.map(l=>`<div>${escaparMultipleHTML(l)}</div>`).join('')}</div></div>`;
+                    institucional = `<div style="display:flex;align-items:center;gap:12px;position:relative;left:-24px;top:-17px;margin-bottom:13px"><div style="flex:0 0 68px">${logo}</div><div style="font-size:10.5px;line-height:1.5;color:#475569;flex:1;overflow-wrap:anywhere">${lineas.map(l=>`<div>${escaparMultipleHTML(l)}</div>`).join('')}</div></div>`;
                 }
                 return `<div style="margin-bottom:20px">${institucional}<h1 style="margin:0 0 7px;font-size:29px;line-height:1.2;text-align:center;font-weight:800;color:#0f172a;overflow-wrap:anywhere">${titulo}</h1>${curso ? `<div style="color:#334155;font-size:19px;text-align:center;margin-bottom:17px">${curso}</div>` : ''}<div style="height:4px;border-radius:2px;background:#6366f1;margin:22px 0 24px"></div></div>`;
+            };
+
+            const construirInstruccionesMultipleHTML = () => {
+                const texto = obtenerInstruccionesHTMLMultiple(multipleActual);
+                if (!texto.replace(/<[^>]+>/g, '').trim()) return '';
+                return `<div style="margin:0 0 20px;padding:14px 16px;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;font-size:13px;line-height:1.65;color:#334155"><strong style="display:block;margin-bottom:7px;color:#1e293b;font-size:13px">Instrucciones para estudiantes</strong><div class="instrucciones-formato">${texto}</div></div>`;
             };
 
             const generarMultipleIA = async () => {
                 const cantidadSeleccion = Number(iaMultipleParams.seleccion);
                 const alternativas = Number(iaMultipleParams.alternativas);
                 const cantidadDesarrollo = Number(iaMultipleParams.desarrollo);
+                const incluirImagenes = !!iaMultipleParams.incluirImagenes;
+                const preguntasConImagen = Math.max(0, Math.min(cantidadSeleccion, Number(iaMultipleParams.preguntasConImagen) || 0));
                 if (!Number.isInteger(cantidadSeleccion) || cantidadSeleccion < 0 || cantidadSeleccion > 30 ||
                     !Number.isInteger(cantidadDesarrollo) || cantidadDesarrollo < 0 || cantidadDesarrollo > 20 ||
                     ![3, 4, 5].includes(alternativas) || cantidadSeleccion + cantidadDesarrollo === 0) {
@@ -935,9 +1127,10 @@ Objetivo de aprendizaje o temática: ${curriculumParams.objetivo || multipleActu
 CANTIDADES EXACTAS:
 - ${cantidadSeleccion} preguntas de selección múltiple, con EXACTAMENTE ${alternativas} alternativas distintas cada una.
 - ${cantidadDesarrollo} preguntas abiertas de desarrollo.
+${incluirImagenes ? `- EXACTAMENTE ${preguntasConImagen} preguntas de selección múltiple deben incluir un apoyo visual pedagógico.` : '- No incluyas imágenes en las preguntas.'}
 
-Requisitos pedagógicos: nivel adecuado al curso; enunciados claros; alternativas plausibles con UNA sola respuesta correcta; evitar pistas obvias, preguntas duplicadas y sesgos. Para cada pregunta de selección identifica correcta como índice entero comenzando desde 0 e incluye explicación breve. Para cada pregunta de desarrollo incluye una respuesta esperada concreta y criterios objetivos de corrección (arreglo de cadenas). No omitas campos. Responde SOLAMENTE con un objeto JSON válido, sin bloques Markdown, con este esquema:
-{"seleccion":[{"enunciado":"Pregunta","alternativas":["Opción A","Opción B","Opción C"],"correcta":0,"explicacion":"Justificación"}],"desarrollo":[{"enunciado":"Pregunta abierta","respuestaEsperada":"Respuesta orientativa","criterios":["Criterio 1","Criterio 2"]}]}
+Requisitos pedagógicos: nivel adecuado al curso; enunciados claros; alternativas plausibles con UNA sola respuesta correcta; evitar pistas obvias, preguntas duplicadas y sesgos. Para cada pregunta de selección identifica correcta como índice entero comenzando desde 0 e incluye explicación breve.${incluirImagenes ? ' Cuando una pregunta de selección múltiple use imagen, incluye usarImagen=true, una descripcionImagen breve, imagenAlt y svgImagen con un SVG simple 640x360, sin scripts ni recursos externos, visualmente útil para responder la pregunta.' : ' Todas las preguntas deben usar usarImagen=false y no incluir svgImagen.'} Para cada pregunta de desarrollo incluye una respuesta esperada concreta y criterios objetivos de corrección (arreglo de cadenas). No omitas campos. Responde SOLAMENTE con un objeto JSON válido, sin bloques Markdown, con este esquema:
+{"seleccion":[{"enunciado":"Pregunta","alternativas":["Opción A","Opción B","Opción C"],"correcta":0,"explicacion":"Justificación","usarImagen":false,"descripcionImagen":"","imagenAlt":"","svgImagen":""}],"desarrollo":[{"enunciado":"Pregunta abierta","respuestaEsperada":"Respuesta orientativa","criterios":["Criterio 1","Criterio 2"]}]}
 El arreglo alternativas debe tener exactamente ${alternativas} entradas, no necesariamente las tres del ejemplo. Usa español de Chile.`;
                     const salida = await llamarIA(prompt, 'Eres un especialista en pedagogía. Responde exclusivamente JSON parseable, sin encabezados ni markdown.');
                     if (!salida) throw new Error('La IA no devolvió contenido.');
@@ -959,9 +1152,11 @@ El arreglo alternativas debe tener exactamente ${alternativas} entradas, no nece
                         if (!Number.isInteger(correcta) || correcta < 0 || correcta >= alternativas) {
                             throw new Error(`La pregunta ${indice + 1} no tiene una respuesta correcta válida.`);
                         }
+                        const imagen = incluirImagenes && p.usarImagen ? procesarImagenIAPregunta(p, p.enunciado.trim()) : { imagenSrc:'', imagenAlt:'', descripcionImagen:'', origenImagen:'' };
                         return { id: `${Date.now()}-s-${indice}`, enunciado: p.enunciado.trim(),
                             alternativas: p.alternativas.map(a => a.trim()), correcta,
-                            explicacion: typeof p.explicacion === 'string' ? p.explicacion : '', puntaje: 1 };
+                            explicacion: typeof p.explicacion === 'string' ? p.explicacion : '', puntaje: 1,
+                            ...imagen };
                     });
                     const desarrollo = json.desarrollo.map((p, indice) => {
                         if (typeof p.enunciado !== 'string' || !p.enunciado.trim() ||
@@ -970,7 +1165,8 @@ El arreglo alternativas debe tener exactamente ${alternativas} entradas, no nece
                         }
                         return { id: `${Date.now()}-d-${indice}`, enunciado: p.enunciado.trim(),
                             respuestaEsperada: p.respuestaEsperada.trim(),
-                            criterios: Array.isArray(p.criterios) ? p.criterios.join('\n') : (typeof p.criterios === 'string' ? p.criterios : ''), puntaje: 5 };
+                            criterios: Array.isArray(p.criterios) ? p.criterios.join('\n') : (typeof p.criterios === 'string' ? p.criterios : ''), puntaje: 5,
+                            imagenSrc: '', imagenAlt: '', descripcionImagen: '', origenImagen: '' };
                     });
                     // Confirmar estructura completa ANTES de modificar la evaluación que está editando el usuario.
                     setMultipleSeleccion(prev=>modoGeneracionMultiple==='agregar'?[...prev,...seleccion]:seleccion);
@@ -1085,6 +1281,32 @@ Responde ÚNICAMENTE JSON. Lenguaje pedagógico español de Chile.`;
                         }
                         y += espacio;
                     };
+                    const dibujarImagenPreguntaPDF = async (pregunta) => {
+                        if (!pregunta?.imagenSrc) return;
+                        try {
+                            const dimensiones = await new Promise((resolve, reject) => {
+                                const img = new Image();
+                                img.onload = () => resolve({ w: img.width || 640, h: img.height || 360 });
+                                img.onerror = () => reject(new Error('No se pudo cargar la imagen de la pregunta.'));
+                                img.src = pregunta.imagenSrc;
+                            });
+                            const maxW = ancho - 18;
+                            const maxH = 52;
+                            const ratio = Math.min(maxW / dimensiones.w, maxH / dimensiones.h);
+                            const w = Math.max(30, dimensiones.w * ratio);
+                            const h = Math.max(18, dimensiones.h * ratio);
+                            reservar(h + 12);
+                            pdf.setDrawColor(219, 228, 240);
+                            pdf.setLineWidth(0.25);
+                            if (typeof pdf.roundedRect === 'function') pdf.roundedRect(margen + 7, y, w + 6, h + 6, 2, 2, 'S');
+                            else pdf.rect(margen + 7, y, w + 6, h + 6);
+                            pdf.addImage(pregunta.imagenSrc, obtenerTipoImagen(pregunta.imagenSrc), margen + 10, y + 3, w, h);
+                            y += h + 9;
+                            if (pregunta.descripcionImagen?.trim()) bloque(pregunta.descripcionImagen.trim(), 8.5, false, 7, 2);
+                        } catch (error) {
+                            console.warn('No fue posible incrustar una imagen de pregunta en el PDF.', error);
+                        }
+                    };
                     pdf.setTextColor(15, 23, 42);
                     const cursoEncabezado = obtenerCursoEncabezadoMultiple();
                     const lineasProfesor = obtenerLineasProfesorMultiple();
@@ -1153,10 +1375,11 @@ Responde ÚNICAMENTE JSON. Lenguaje pedagógico español de Chile.`;
                         pdf.setTextColor(...colorTexto);
 
                         if (multipleActual.usarEncabezado) {
-                            const logoX = margen;
-                            const logoY = y;
-                            const logoW = 22;
-                            const logoH = 22;
+                            // Bloque institucional discreto: 25 % menos de tamaño y más cerca de la esquina superior izquierda.
+                            const logoX = 11.5;
+                            const logoY = 10;
+                            const logoW = 16.5;
+                            const logoH = 16.5;
                             if (multipleActual.logoInstitucion) {
                                 try {
                                     const propsImagen=pdf.getImageProperties(multipleActual.logoInstitucion);
@@ -1174,22 +1397,22 @@ Responde ÚNICAMENTE JSON. Lenguaje pedagógico español de Chile.`;
                                 pdf.setTextColor(...colorTexto);
                             }
 
-                            const infoX = logoX + 28;
-                            let infoY = logoY + 5;
+                            const infoX = logoX + 20.5;
+                            const alturaLineaProfesor = 4.125; // 75 % del interlineado original (5,5 mm)
                             pdf.setFont('helvetica', 'normal');
-                            pdf.setFontSize(11);
-                            if (lineasProfesor.length) {
-                                lineasProfesor.forEach(linea => {
-                                    const partes=pdf.splitTextToSize(linea, ancho-34);
-                                partes.forEach(sublinea=>{ pdf.text(sublinea, infoX, infoY);infoY += 5.5; });
-                                });
-                            }
-
-                            const altoSuperior = Math.max(logoH, infoY - logoY);
-                            y = logoY + altoSuperior + 16;
-                            escribirCentrado(multipleActual.titulo || 'Selección Multiple', 22, 'bold', 0, 155, colorTitulo, 2.5);
+                            pdf.setFontSize(8.25); // 75 % de 11 puntos
+                            pdf.setTextColor(71, 85, 105);
+                            const lineasDatos = lineasProfesor.flatMap(linea => pdf.splitTextToSize(linea, 85));
+                            const altoTexto = lineasDatos.length ? (lineasDatos.length - 1) * alturaLineaProfesor + 2.9 : 0;
+                            // Centrar verticalmente la caja de datos respecto del logo.
+                            let infoY = logoY + Math.max(2.8, (logoH - altoTexto) / 2 + 2.5);
+                            lineasDatos.forEach(linea => { pdf.text(linea, infoX, infoY); infoY += alturaLineaProfesor; });
+                            pdf.setTextColor(...colorTexto);
+                            const altoSuperior = Math.max(logoH, lineasDatos.length ? infoY - logoY : 0);
+                            y = logoY + altoSuperior + 17;
+                            escribirCentrado(multipleActual.titulo || 'Selección Multiple', 20.5, 'bold', 0, 155, colorTitulo, 3.4);
                             if (cursoEncabezado) {
-                                escribirCentrado(cursoEncabezado, 14.5, 'normal', 0, 130, colorTexto, 3.5);
+                                escribirCentrado(cursoEncabezado, 13.5, 'normal', 0, 130, colorTexto, 5);
                             } else if (curriculumParams.asignatura) {
                                 escribirCentrado(curriculumParams.asignatura, 11, 'normal', 0, 145, colorSuave, 3.5);
                             }
@@ -1220,8 +1443,108 @@ Responde ÚNICAMENTE JSON. Lenguaje pedagógico español de Chile.`;
                         if (multipleActual.objetivo.trim()) {
                             bloque(`Objetivo: ${multipleActual.objetivo}`, 9.4, false, 0, 4);
                         }
-                        if (multipleActual.instrucciones.trim()) {
-                            bloque(`Instrucciones: ${multipleActual.instrucciones}`, 9.4, false, 0, 6);
+                        // Conservar negrita, cursiva, subrayado, saltos y listas en el PDF vectorial.
+                        const htmlInstrucciones = obtenerInstruccionesHTMLMultiple(multipleActual);
+                        if (htmlInstrucciones.replace(/<[^>]*>/g, '').trim()) {
+                            const inicioCajaInstrucciones = y;
+                            reservar(16);
+                            bloque('Instrucciones para estudiantes', 9.4, true, 2, 2.5);
+                            const doc = new DOMParser().parseFromString(htmlInstrucciones, 'text/html');
+                            const fragmentos = [];
+                            const nuevaLinea = () => {
+                                if (fragmentos.length && !fragmentos[fragmentos.length - 1].nuevaLinea) fragmentos.push({ nuevaLinea: true });
+                            };
+                            const recorrer = (nodo, estilo = {}, lista = null) => {
+                                if (nodo.nodeType === 3) {
+                                    String(nodo.nodeValue || '').split(/(\n)/).forEach(parte => {
+                                        if (parte === '\n') nuevaLinea();
+                                        else if (parte) fragmentos.push({ texto: parte, ...estilo });
+                                    });
+                                    return;
+                                }
+                                if (nodo.nodeType !== 1) return;
+                                const tag = nodo.tagName.toLowerCase();
+                                if (tag === 'br') { nuevaLinea(); return; }
+                                if (tag === 'ul' || tag === 'ol') {
+                                    nuevaLinea();
+                                    let numero = 0;
+                                    Array.from(nodo.childNodes).forEach(hijo => {
+                                        if (hijo.nodeType === 1 && hijo.tagName.toLowerCase() === 'li') numero++;
+                                        recorrer(hijo, estilo, { tipo: tag, numero });
+                                    });
+                                    nuevaLinea();
+                                    return;
+                                }
+                                const esBloque = ['div', 'p', 'li'].includes(tag);
+                                if (esBloque) nuevaLinea();
+                                if (tag === 'li') fragmentos.push({ texto: lista?.tipo === 'ol' ? `${lista.numero}. ` : '• ', ...estilo });
+                                const nuevoEstilo = {
+                                    negrita: !!(estilo.negrita || ['b', 'strong'].includes(tag)),
+                                    cursiva: !!(estilo.cursiva || ['i', 'em'].includes(tag)),
+                                    subrayado: !!(estilo.subrayado || tag === 'u')
+                                };
+                                Array.from(nodo.childNodes).forEach(hijo => recorrer(hijo, nuevoEstilo, lista));
+                                if (esBloque) nuevaLinea();
+                            };
+                            Array.from(doc.body.childNodes).forEach(nodo => recorrer(nodo));
+                            const fontSize = 9.4, lineHeight = 5.0;
+                            const limiteDerecho = margen + ancho - 2, inicioX = margen + 2;
+                            let x = inicioX, lineaOcupada = false;
+                            const pasarLinea = () => { y += lineHeight; x = inicioX; lineaOcupada = false; };
+                            const escribirFragmento = (pieza, estilo) => {
+                                const fuente = estilo.negrita ? (estilo.cursiva ? 'bolditalic' : 'bold') : (estilo.cursiva ? 'italic' : 'normal');
+                                pdf.setFont('helvetica', fuente);
+                                pdf.setFontSize(fontSize);
+                                let pendiente = pieza;
+                                while (pendiente) {
+                                    if (!pendiente.trim() && !lineaOcupada) break;
+                                    let espacio = limiteDerecho - x;
+                                    if (espacio <= 1) { pasarLinea(); espacio = limiteDerecho - x; }
+                                    let cantidad = pendiente.length;
+                                    while (cantidad > 1 && pdf.getTextWidth(pendiente.slice(0, cantidad)) > espacio) cantidad--;
+                                    if (pdf.getTextWidth(pendiente.slice(0, cantidad)) > espacio && lineaOcupada) { pasarLinea(); continue; }
+                                    const parte = pendiente.slice(0, cantidad);
+                                    if (y + lineHeight > tope && y > 20) {
+                                        nuevaPagina(); x = inicioX; lineaOcupada = false;
+                                    }
+                                    reservar(lineHeight);
+                                    pdf.setFont('helvetica', fuente);
+                                    pdf.setFontSize(fontSize);
+                                    pdf.setTextColor(51, 65, 85);
+                                    pdf.text(parte, x, y);
+                                    const avance = pdf.getTextWidth(parte);
+                                    if (estilo.subrayado && parte.trim()) {
+                                        pdf.setDrawColor(51, 65, 85);
+                                        pdf.setLineWidth(.17);
+                                        pdf.line(x, y + .65, x + avance, y + .65);
+                                    }
+                                    x += avance; lineaOcupada = true;
+                                    pendiente = pendiente.slice(cantidad);
+                                    if (pendiente) pasarLinea();
+                                }
+                            };
+                            fragmentos.forEach(fragmento => {
+                                if (fragmento.nuevaLinea) {
+                                    if (lineaOcupada) pasarLinea();
+                                    return;
+                                }
+                                const partes = fragmento.texto.match(/\S+|\s+/g) || [];
+                                partes.forEach(pieza => {
+                                    const fuente = fragmento.negrita ? (fragmento.cursiva ? 'bolditalic' : 'bold') : (fragmento.cursiva ? 'italic' : 'normal');
+                                    pdf.setFont('helvetica', fuente);
+                                    pdf.setFontSize(fontSize);
+                                    if (lineaOcupada && x + pdf.getTextWidth(pieza) > limiteDerecho) pasarLinea();
+                                    escribirFragmento(pieza, fragmento);
+                                });
+                            });
+                            y += lineaOcupada ? lineHeight + 4 : 4;
+                            const altoCajaInstrucciones = Math.max(12, y - inicioCajaInstrucciones + 1.5);
+                            pdf.setDrawColor(203, 213, 225);
+                            pdf.setLineWidth(0.35);
+                            if (typeof pdf.roundedRect === 'function') pdf.roundedRect(margen, inicioCajaInstrucciones - 2.5, ancho, altoCajaInstrucciones, 3, 3, 'S');
+                            else pdf.rect(margen, inicioCajaInstrucciones - 2.5, ancho, altoCajaInstrucciones);
+                            y += 2;
+                            pdf.setTextColor(...colorTexto);
                         }
                     };
                     dibujarCabeceraMultiplePDF();
@@ -1349,16 +1672,17 @@ Responde ÚNICAMENTE JSON. Lenguaje pedagógico español de Chile.`;
                         }
                     };
                     crearPagina();
-                    insertar(`${construirEncabezadoMultipleHTML()}<div style="background:#f8fafc;border:1px solid #cbd5e1;padding:14px;border-radius:8px;margin-bottom:14px"><strong>Nombre:</strong> ________________________________________<div style="margin-top:12px"><strong>Curso:</strong> ${escaparMultipleHTML(obtenerCursoEncabezadoMultiple() || '________________')} &nbsp;&nbsp;&nbsp; <strong>Fecha:</strong> ______________</div></div>${multipleActual.objetivo ? `<p style="margin:0 0 10px;font-size:13px"><strong>Objetivo:</strong> ${escaparMultipleHTML(multipleActual.objetivo)}</p>` : ''}${multipleActual.instrucciones ? `<p style="margin:0 0 20px;font-size:13px"><strong>Instrucciones:</strong> ${escaparMultipleHTML(multipleActual.instrucciones)}</p>` : ''}`);
+                    insertar(`${construirEncabezadoMultipleHTML()}<div style="background:#f8fafc;border:1px solid #cbd5e1;padding:14px;border-radius:8px;margin-bottom:14px"><strong>Nombre:</strong> ________________________________________<div style="margin-top:12px"><strong>Curso:</strong> ${escaparMultipleHTML(obtenerCursoEncabezadoMultiple() || '________________')} &nbsp;&nbsp;&nbsp; <strong>Fecha:</strong> ______________</div></div>${multipleActual.objetivo ? `<p style="margin:0 0 10px;font-size:13px"><strong>Objetivo:</strong> ${escaparMultipleHTML(multipleActual.objetivo)}</p>` : ''}`);
+                    if (construirInstruccionesMultipleHTML()) insertar(construirInstruccionesMultipleHTML());
                     if (multipleActual.mostrarPuntajes !== false) insertar(`<p style="font-size:12px;color:#4338ca;font-weight:700;margin:4px 0 13px">Puntaje total: ${obtenerPuntosMultiple()} pts &nbsp; · &nbsp; Corte: ${puntajeCorteMultiple()} pts &nbsp; · &nbsp; Exigencia: ${exigencia}%</p>`);
                     const encabezadoSeccion = titulo => `<div style="background:#eef2ff;border-left:4px solid #4f46e5;border-radius:4px;color:#312e81;padding:10px 12px;margin:15px 0 13px;font-weight:800;font-size:15px">${titulo}</div>`;
                     if (multipleSeleccion.length) {
                         insertar(encabezadoSeccion('I. SELECCIÓN MÚLTIPLE'));
-                        multipleSeleccion.forEach((p,i) => insertar(`<div style="margin-bottom:17px"><div style="font-weight:700;margin-bottom:7px">${i+1}. ${escaparMultipleHTML(p.enunciado)} ${multipleActual.mostrarPuntajes !== false ? `<span style="font-size:12px;color:#64748b;font-weight:400">(${escaparMultipleHTML(p.puntaje ?? 1)} pts)</span>` : ''}</div>${p.alternativas.map((a,j) => `<div style="margin:5px 0 5px 15px">${letrasMultiple[j]}) &nbsp; ${escaparMultipleHTML(a)}</div>`).join('')}</div>`));
+                        multipleSeleccion.forEach((p,i) => insertar(`<div style="margin-bottom:17px"><div style="font-weight:700;margin-bottom:7px">${i+1}. ${escaparMultipleHTML(p.enunciado)} ${multipleActual.mostrarPuntajes !== false ? `<span style="font-size:12px;color:#64748b;font-weight:400">(${escaparMultipleHTML(p.puntaje ?? 1)} pts)</span>` : ''}</div>${renderImagenPreguntaHTML(p,true)}${p.alternativas.map((a,j) => `<div style="margin:5px 0 5px 15px">${letrasMultiple[j]}) &nbsp; ${escaparMultipleHTML(a)}</div>`).join('')}</div>`));
                     }
                     if (multipleDesarrollo.length) {
                         insertar(encabezadoSeccion('II. DESARROLLO'));
-                        multipleDesarrollo.forEach((p,i) => insertar(`<div style="margin-bottom:16px"><div style="font-weight:700;margin-bottom:9px">${multipleSeleccion.length+i+1}. ${escaparMultipleHTML(p.enunciado)} ${multipleActual.mostrarPuntajes !== false ? `<span style="font-size:12px;color:#64748b;font-weight:400">(${escaparMultipleHTML(p.puntaje ?? 5)} pts)</span>` : ''}</div>${Array.from({length:multipleActual.lineasDesarrollo||6},()=>'<div style="height:25px;border-bottom:1px solid #cbd5e1"></div>').join('')}</div>`));
+                        multipleDesarrollo.forEach((p,i) => insertar(`<div style="margin-bottom:16px"><div style="font-weight:700;margin-bottom:9px">${multipleSeleccion.length+i+1}. ${escaparMultipleHTML(p.enunciado)} ${multipleActual.mostrarPuntajes !== false ? `<span style="font-size:12px;color:#64748b;font-weight:400">(${escaparMultipleHTML(p.puntaje ?? 5)} pts)</span>` : ''}</div>${renderImagenPreguntaHTML(p,true)}${Array.from({length:multipleActual.lineasDesarrollo||6},()=>'<div style="height:25px;border-bottom:1px solid #cbd5e1"></div>').join('')}</div>`));
                     }
                     await Promise.all(Array.from(soporte.querySelectorAll('img')).map(img=>img.decode ? img.decode().catch(()=>{}) : Promise.resolve()));
                     const imagenes = [];
@@ -1583,8 +1907,8 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     if(!res.instrumentoData?.multipleSeleccion || !res.instrumentoData?.multipleDesarrollo) {showAlert('Este registro antiguo no conserva las preguntas originales.');return;}
                     setTipoInstrumento('multiple');
                     setMultipleActual(prev=>({...prev,...res.instrumentoData.multipleActual}));
-                    setMultipleSeleccion(res.instrumentoData.multipleSeleccion);
-                    setMultipleDesarrollo(res.instrumentoData.multipleDesarrollo);
+                    setMultipleSeleccion((res.instrumentoData.multipleSeleccion||[]).map(p=>({imagenSrc:'',imagenAlt:'',descripcionImagen:'',origenImagen:'',...p})));
+                    setMultipleDesarrollo((res.instrumentoData.multipleDesarrollo||[]).map(p=>({imagenSrc:'',imagenAlt:'',descripcionImagen:'',origenImagen:'',...p})));
                     setAlumnoMultiple(res.alumno);setRespuestasMultiple(res.seleccionesMultiple || res.selecciones || {});
                     setPuntosDesarrolloMultiple(res.puntosDesarrolloMultiple || {});
                     setObservacionMultiple(res.retroalimentacion||'');
@@ -2314,9 +2638,18 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 if(data.escalaActual) setEscalaActual(data.escalaActual);
                 if(Array.isArray(data.escalaColumnas)) setEscalaColumnas(data.escalaColumnas);
                 if(Array.isArray(data.escalaIndicadores)) setEscalaIndicadores(data.escalaIndicadores);
-                if(data.multipleActual) setMultipleActual(prev=>({...prev,...data.multipleActual}));
-                if(Array.isArray(data.multipleSeleccion)) setMultipleSeleccion(data.multipleSeleccion);
-                if(Array.isArray(data.multipleDesarrollo)) setMultipleDesarrollo(data.multipleDesarrollo);
+                if (data.multipleActual) {
+                    const importado = { ...data.multipleActual };
+                    // Sesiones anteriores a 7.1 guardan las instrucciones solo como texto plano.
+                    if (typeof importado.instruccionesHtml !== 'string') {
+                        importado.instruccionesHtml = escaparTextoInstrucciones(importado.instrucciones || '').replace(/\r?\n/g, '<br>');
+                    } else {
+                        importado.instruccionesHtml = sanitizarInstruccionesHTML(importado.instruccionesHtml);
+                    }
+                    setMultipleActual(prev => ({ ...prev, ...importado }));
+                }
+                if(Array.isArray(data.multipleSeleccion)) setMultipleSeleccion(data.multipleSeleccion.map(p=>({imagenSrc:'',imagenAlt:'',descripcionImagen:'',origenImagen:'',...p})));
+                if(Array.isArray(data.multipleDesarrollo)) setMultipleDesarrollo(data.multipleDesarrollo.map(p=>({imagenSrc:'',imagenAlt:'',descripcionImagen:'',origenImagen:'',...p})));
                 if(data.respuestasMultiple) setRespuestasMultiple(data.respuestasMultiple);
                 if(data.puntosDesarrolloMultiple) setPuntosDesarrolloMultiple(data.puntosDesarrolloMultiple);
                 if(typeof data.alumnoMultiple === 'string') setAlumnoMultiple(data.alumnoMultiple);
@@ -3109,7 +3442,13 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                             <h3 className="font-bold flex items-center gap-2"><Edit3 size={20} className="text-indigo-600" /> Información del Instrumento</h3>
                                             <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Título</label><input type="text" value={multipleActual.titulo} onChange={e=>actualizarMultipleActual({titulo:e.target.value})} className="w-full p-3 border border-neutral-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
                                             <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Objetivo de evaluación</label><textarea value={multipleActual.objetivo} onChange={e=>actualizarMultipleActual({objetivo:e.target.value})} className="w-full p-3 border border-neutral-200 rounded-xl text-sm min-h-[76px] focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
-                                            <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Instrucciones para estudiantes</label><textarea value={multipleActual.instrucciones} onChange={e=>actualizarMultipleActual({instrucciones:e.target.value})} className="w-full p-3 border border-neutral-200 rounded-xl text-sm min-h-[92px] focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Instrucciones para estudiantes</label>
+                                                <EditorInstruccionesMultiple
+                                                    html={multipleActual.instruccionesHtml ?? escaparTextoInstrucciones(multipleActual.instrucciones || '').replace(/\r?\n/g, '<br>')}
+                                                    onChange={(html, texto) => actualizarMultipleActual({instruccionesHtml: html, instrucciones: texto})}
+                                                />
+                                            </div>
                                             <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/50 space-y-4">
                                                 <div className="flex items-center justify-between gap-3 flex-wrap">
                                                     <div>
@@ -3215,6 +3554,7 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                                         </div>
                                                         {p.correcta === null && <p role="status" className="text-xs font-semibold text-amber-700">Eliminaste la alternativa correcta. Selecciona una nueva respuesta antes de descargar.</p>}
                                                     </div>
+                                                    <div className="sm:pl-12 space-y-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Upload size={14}/> {p.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={e=>manejarImagenManualPregunta('seleccion', p.id, e)} /></label><button type="button" disabled={regenerandoPregunta===`img-${p.id}`} onClick={()=>generarImagenPreguntaIA('seleccion', p.id)} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 hover:bg-violet-100 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40"><Sparkles size={14}/> {p.imagenSrc && p.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{p.imagenSrc && <button type="button" onClick={()=>quitarImagenPregunta('seleccion', p.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{p.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{p.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{p.descripcionImagen}</p>}</div>}<div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Texto alternativo / descripción de la imagen</label><textarea value={p.imagenAlt || ''} onChange={e=>editarMultipleSeleccion(p.id,{imagenAlt:e.target.value})} placeholder="Describe brevemente la imagen o indica qué muestra" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[52px]"/></div></div>
                                                     <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Justificación / pauta de respuesta (solo docente)</label><textarea value={p.explicacion || ''} onChange={e=>editarMultipleSeleccion(p.id,{explicacion:e.target.value})} placeholder="Explica por qué esta alternativa es la correcta" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[54px]"/></div>
                                                     <div className="sm:pl-12 flex flex-wrap items-center gap-3 justify-between"><label className="text-xs font-bold text-neutral-600 flex items-center gap-2">Puntaje de la pregunta <input type="number" min="0.5" step="0.5" aria-label={`Puntaje de selección ${i+1}`} value={p.puntaje ?? 1} onChange={e=>editarMultipleSeleccion(p.id,{puntaje:e.target.value})} className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg bg-white" /></label><span className="text-xs text-neutral-500">La respuesta correcta solo se incluirá en el PDF docente.</span></div>
                                                 </div>
@@ -3225,6 +3565,7 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                             {multipleDesarrollo.length===0 && <p className="text-sm text-neutral-400 italic bg-neutral-50 rounded-xl p-4">No hay preguntas de desarrollo. Genera preguntas con IA o agrégalas manualmente.</p>}
                                             <div className="space-y-5">{multipleDesarrollo.map((p,i)=>(<div key={p.id} className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
                                                 <div className="flex items-start gap-3"><div className="bg-indigo-100 text-indigo-700 rounded-lg px-3 py-2 text-xs font-black">{multipleSeleccion.length+i+1}</div><textarea aria-label={`Enunciado desarrollo ${i+1}`} value={p.enunciado} onChange={e=>editarMultipleDesarrollo(p.id,{enunciado:e.target.value})} placeholder="Escribe una pregunta abierta..." className="w-full p-3 bg-white border border-neutral-200 rounded-lg text-sm min-h-[70px]"/><div className="flex flex-col gap-1 shrink-0"><button type="button" disabled={i===0} onClick={()=>moverPreguntaMultiple('desarrollo',p.id,-1)} aria-label={`Subir pregunta de desarrollo ${i+1}`} title="Subir" className="text-slate-600 disabled:opacity-30 p-1 rounded">↑</button><button type="button" disabled={i===multipleDesarrollo.length-1} onClick={()=>moverPreguntaMultiple('desarrollo',p.id,1)} aria-label={`Bajar pregunta de desarrollo ${i+1}`} title="Bajar" className="text-slate-600 disabled:opacity-30 p-1 rounded">↓</button></div><button type="button" onClick={()=>duplicarPreguntaMultiple('desarrollo',p.id)} title="Duplicar pregunta" aria-label={`Duplicar pregunta de desarrollo ${i+1}`} className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg"><Plus size={17}/></button><button type="button" disabled={!!regenerandoPregunta} onClick={()=>regenerarPreguntaMultipleIA('desarrollo',p.id)} title="Regenerar esta pregunta con IA" aria-label={`Regenerar pregunta de desarrollo ${i+1}`} className="text-violet-600 hover:bg-violet-50 disabled:opacity-40 p-2 rounded-lg"><Sparkles size={17}/></button><button aria-label={`Eliminar pregunta de desarrollo ${i+1}`} title="Eliminar pregunta" onClick={()=>setMultipleDesarrollo(prev=>prev.filter(x=>x.id!==p.id))} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button></div>
+                                                <div className="sm:pl-12 space-y-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Upload size={14}/> {p.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={e=>manejarImagenManualPregunta('desarrollo', p.id, e)} /></label><button type="button" disabled={regenerandoPregunta===`img-${p.id}`} onClick={()=>generarImagenPreguntaIA('desarrollo', p.id)} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 hover:bg-violet-100 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40"><Sparkles size={14}/> {p.imagenSrc && p.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{p.imagenSrc && <button type="button" onClick={()=>quitarImagenPregunta('desarrollo', p.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{p.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{p.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{p.descripcionImagen}</p>}</div>}<div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Texto alternativo / descripción de la imagen</label><textarea value={p.imagenAlt || ''} onChange={e=>editarMultipleDesarrollo(p.id,{imagenAlt:e.target.value})} placeholder="Describe brevemente la imagen o indica qué muestra" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[52px]"/></div></div>
                                                 <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Respuesta esperada (solo docente)</label><textarea value={p.respuestaEsperada||''} onChange={e=>editarMultipleDesarrollo(p.id,{respuestaEsperada:e.target.value})} placeholder="Escribe la respuesta orientativa..." className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[75px]"/></div>
                                                 <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Criterios o elementos clave (solo docente)</label><textarea value={p.criterios||''} onChange={e=>editarMultipleDesarrollo(p.id,{criterios:e.target.value})} placeholder="Un criterio por línea..." className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[75px]"/></div>
                                                 <div className="sm:pl-12"><label className="text-xs font-bold text-neutral-600 flex items-center gap-2">Puntaje de la pregunta <input type="number" min="0.5" step="0.5" aria-label={`Puntaje desarrollo ${i+1}`} value={p.puntaje ?? 5} onChange={e=>editarMultipleDesarrollo(p.id,{puntaje:e.target.value})} className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg bg-white" /></label></div>
@@ -3260,14 +3601,14 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                                     <div className="flex gap-2 items-center"><button type="button" onClick={()=>exportarMultiplePDF(false)} className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-bold">Descargar PDF</button><button type="button" onClick={()=>setVistaMultipleOpen(false)} className="p-2 bg-slate-100 rounded-lg" title="Cerrar" aria-label="Cerrar vista previa"><XIcon size={18}/></button></div>
                                                 </div>
                                                 <div className="overflow-y-auto p-3 sm:p-7"><div className="max-w-[760px] mx-auto studio-canvas p-6 sm:p-12 text-slate-900 text-sm">
-                                                    {multipleActual.usarEncabezado && <div className="flex items-start gap-5 mb-12"><div className="w-24 shrink-0">{multipleActual.logoInstitucion && <img src={multipleActual.logoInstitucion} alt="Logo" className="w-24 h-24 object-contain" />}</div><p className="whitespace-pre-line text-sm leading-relaxed">{multipleActual.datosProfesor}</p></div>}
+                                                    {multipleActual.usarEncabezado && <div className="relative -ml-6 -mt-6 flex items-center gap-3 mb-7"><div className="w-[72px] shrink-0">{multipleActual.logoInstitucion && <img src={multipleActual.logoInstitucion} alt="Logo" className="w-[72px] h-[72px] object-contain" />}</div><p className="whitespace-pre-line text-[10.5px] leading-[1.5] text-slate-600">{multipleActual.datosProfesor}</p></div>}
                                                     <h1 className="text-2xl sm:text-3xl text-center font-black mb-2">{multipleActual.titulo}</h1><p className="text-center text-slate-600 mb-6">{obtenerCursoEncabezadoMultiple()}</p>
                                                     <div className="border-b-4 border-indigo-500 mb-6" />
                                                     <div className="studio-identity mb-5"><p>Nombre: _____________________________________________________</p><p className="mt-3">Curso: {obtenerCursoEncabezadoMultiple()} &nbsp; Fecha: _________________</p></div>
-                                                    <p className="text-sm mb-3"><b>Objetivo:</b> {multipleActual.objetivo}</p><p className="text-sm mb-5"><b>Instrucciones:</b> {multipleActual.instrucciones}</p>
+                                                    <p className="text-sm mb-3"><b>Objetivo:</b> {multipleActual.objetivo}</p>{obtenerInstruccionesHTMLMultiple(multipleActual).replace(/<[^>]*>/g, '').trim() && <div className="mb-5 text-sm text-slate-700 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"><b className="block mb-2 text-slate-900">Instrucciones para estudiantes</b><div className="instrucciones-formato" dangerouslySetInnerHTML={{__html:obtenerInstruccionesHTMLMultiple(multipleActual)}} /></div>}
                                                     {multipleActual.mostrarPuntajes!==false && <p className="text-xs text-slate-600 mb-4">Total: {obtenerPuntosMultiple()} pts · Corte: {puntajeCorteMultiple()} pts · Exigencia: {exigencia}%</p>}
-                                                    {!!multipleSeleccion.length && <><h3 className="bg-indigo-50 text-indigo-900 px-4 py-3 font-extrabold mb-5">I. SELECCIÓN MÚLTIPLE</h3>{multipleSeleccion.map((p,i)=><div key={p.id} className="mb-6 break-inside-avoid"><p className="font-bold">{i+1}. {p.enunciado} {multipleActual.mostrarPuntajes!==false && <span className="font-normal text-xs text-slate-400">({p.puntaje??1} pts)</span>}</p><div className="pl-5 mt-3 space-y-2">{p.alternativas.map((a,j)=><p key={j}>{letrasMultiple[j]}) {a}</p>)}</div></div>)}</>}
-                                                    {!!multipleDesarrollo.length && <><h3 className="bg-indigo-50 text-indigo-900 px-4 py-3 font-extrabold mb-5">II. DESARROLLO</h3>{multipleDesarrollo.map((p,i)=><div key={p.id} className="mb-6 break-inside-avoid"><p className="font-bold">{multipleSeleccion.length+i+1}. {p.enunciado} {multipleActual.mostrarPuntajes!==false && <span className="font-normal text-xs text-slate-400">({p.puntaje??5} pts)</span>}</p><div className="mt-4 space-y-6">{Array.from({length:multipleActual.lineasDesarrollo||6},(_,j)=><div key={j} className="border-b border-slate-300" />)}</div></div>)}</>}
+                                                    {!!multipleSeleccion.length && <><h3 className="bg-indigo-50 text-indigo-900 px-4 py-3 font-extrabold mb-5">I. SELECCIÓN MÚLTIPLE</h3>{multipleSeleccion.map((p,i)=><div key={p.id} className="mb-6 break-inside-avoid"><p className="font-bold">{i+1}. {p.enunciado} {multipleActual.mostrarPuntajes!==false && <span className="font-normal text-xs text-slate-400">({p.puntaje??1} pts)</span>}</p>{p.imagenSrc && <figure className="my-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="max-h-56 w-full object-contain rounded-xl border border-slate-200 bg-white p-2" />{p.descripcionImagen && <figcaption className="text-xs text-slate-500 text-center mt-2">{p.descripcionImagen}</figcaption>}</figure>}<div className="pl-5 mt-3 space-y-2">{p.alternativas.map((a,j)=><p key={j}>{letrasMultiple[j]}) {a}</p>)}</div></div>)}</>}
+                                                    {!!multipleDesarrollo.length && <><h3 className="bg-indigo-50 text-indigo-900 px-4 py-3 font-extrabold mb-5">II. DESARROLLO</h3>{multipleDesarrollo.map((p,i)=><div key={p.id} className="mb-6 break-inside-avoid"><p className="font-bold">{multipleSeleccion.length+i+1}. {p.enunciado} {multipleActual.mostrarPuntajes!==false && <span className="font-normal text-xs text-slate-400">({p.puntaje??5} pts)</span>}</p>{p.imagenSrc && <figure className="my-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="max-h-56 w-full object-contain rounded-xl border border-slate-200 bg-white p-2" />{p.descripcionImagen && <figcaption className="text-xs text-slate-500 text-center mt-2">{p.descripcionImagen}</figcaption>}</figure>}<div className="mt-4 space-y-6">{Array.from({length:multipleActual.lineasDesarrollo||6},(_,j)=><div key={j} className="border-b border-slate-300" />)}</div></div>)}</>}
                                                 </div></div>
                                             </div>
                                         </div>
@@ -3289,8 +3630,8 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4"><div className="text-xs text-emerald-700">Puntos corregidos</div><div className="text-2xl font-black mt-1 text-emerald-700">{multipleSeleccion.reduce((t,p)=>t+(respuestasMultiple[p.id]===p.correcta?Number(p.puntaje??1):0),0)+multipleDesarrollo.reduce((t,p)=>t+(Number(puntosDesarrolloMultiple[p.id])||0),0)} pts</div></div>
                                         </div>
                                     </div>
-                                    {!!multipleSeleccion.length && <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5"><h3 className="text-lg font-black text-slate-900">I. Selección múltiple</h3>{multipleSeleccion.map((p,i)=><div key={p.id} className="border border-slate-200 rounded-xl p-4"><div className="flex justify-between gap-3"><p className="font-bold text-sm">{i+1}. {p.enunciado}</p><span className="text-xs shrink-0 text-indigo-700 font-bold">{p.puntaje??1} pts</span></div><div className="grid sm:grid-cols-2 gap-2 mt-3">{p.alternativas.map((a,j)=><label key={j} className={`flex items-start gap-2 p-3 rounded-xl border text-sm cursor-pointer ${respuestasMultiple[p.id]===j?'border-indigo-500 bg-indigo-50':'border-slate-200 hover:bg-slate-50'}`}><input type="radio" name={`resp-${p.id}`} checked={respuestasMultiple[p.id]===j} onChange={()=>setRespuestasMultiple(prev=>({...prev,[p.id]:j}))} className="mt-0.5 accent-indigo-600"/><span>{letrasMultiple[j]}) {a}</span></label>)}</div><div className="mt-3 text-xs text-slate-500">{Number.isInteger(respuestasMultiple[p.id])?respuestasMultiple[p.id]===p.correcta?'✓ Respuesta correcta':'Respuesta incorrecta · 0 puntos':'Sin corregir'}</div></div>)}</section>}
-                                    {!!multipleDesarrollo.length && <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-4"><h3 className="text-lg font-black text-slate-900">II. Desarrollo</h3>{multipleDesarrollo.map((p,i)=><div key={p.id} className="p-4 border border-slate-200 rounded-xl"><div className="font-bold text-sm mb-2">{multipleSeleccion.length+i+1}. {p.enunciado}</div><div className="text-xs text-slate-500 mb-2">Pauta: {p.respuestaEsperada||'Sin pauta escrita'}</div><label className="text-xs font-bold text-slate-700 flex items-center gap-3">Puntos obtenidos (máximo {p.puntaje??5}) <input aria-label={`Puntaje de corrección desarrollo ${i+1}`} type="number" min="0" max={p.puntaje??5} step="0.5" value={puntosDesarrolloMultiple[p.id]??''} onChange={e=>setPuntosDesarrolloMultiple(prev=>({...prev,[p.id]:e.target.value}))} className="w-24 border border-slate-200 rounded-lg p-2" /></label></div>)}</section>}
+                                    {!!multipleSeleccion.length && <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5"><h3 className="text-lg font-black text-slate-900">I. Selección múltiple</h3>{multipleSeleccion.map((p,i)=><div key={p.id} className="border border-slate-200 rounded-xl p-4"><div className="flex justify-between gap-3"><p className="font-bold text-sm">{i+1}. {p.enunciado}</p><span className="text-xs shrink-0 text-indigo-700 font-bold">{p.puntaje??1} pts</span></div>{p.imagenSrc && <figure className="my-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="max-h-52 w-full object-contain rounded-xl border border-slate-200 bg-white p-2" />{p.descripcionImagen && <figcaption className="text-xs text-slate-500 text-center mt-2">{p.descripcionImagen}</figcaption>}</figure>}<div className="grid sm:grid-cols-2 gap-2 mt-3">{p.alternativas.map((a,j)=><label key={j} className={`flex items-start gap-2 p-3 rounded-xl border text-sm cursor-pointer ${respuestasMultiple[p.id]===j?'border-indigo-500 bg-indigo-50':'border-slate-200 hover:bg-slate-50'}`}><input type="radio" name={`resp-${p.id}`} checked={respuestasMultiple[p.id]===j} onChange={()=>setRespuestasMultiple(prev=>({...prev,[p.id]:j}))} className="mt-0.5 accent-indigo-600"/><span>{letrasMultiple[j]}) {a}</span></label>)}</div><div className="mt-3 text-xs text-slate-500">{Number.isInteger(respuestasMultiple[p.id])?respuestasMultiple[p.id]===p.correcta?'✓ Respuesta correcta':'Respuesta incorrecta · 0 puntos':'Sin corregir'}</div></div>)}</section>}
+                                    {!!multipleDesarrollo.length && <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-4"><h3 className="text-lg font-black text-slate-900">II. Desarrollo</h3>{multipleDesarrollo.map((p,i)=><div key={p.id} className="p-4 border border-slate-200 rounded-xl"><div className="font-bold text-sm mb-2">{multipleSeleccion.length+i+1}. {p.enunciado}</div>{p.imagenSrc && <figure className="my-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="max-h-52 w-full object-contain rounded-xl border border-slate-200 bg-white p-2" />{p.descripcionImagen && <figcaption className="text-xs text-slate-500 text-center mt-2">{p.descripcionImagen}</figcaption>}</figure>}<div className="text-xs text-slate-500 mb-2">Pauta: {p.respuestaEsperada||'Sin pauta escrita'}</div><label className="text-xs font-bold text-slate-700 flex items-center gap-3">Puntos obtenidos (máximo {p.puntaje??5}) <input aria-label={`Puntaje de corrección desarrollo ${i+1}`} type="number" min="0" max={p.puntaje??5} step="0.5" value={puntosDesarrolloMultiple[p.id]??''} onChange={e=>setPuntosDesarrolloMultiple(prev=>({...prev,[p.id]:e.target.value}))} className="w-24 border border-slate-200 rounded-lg p-2" /></label></div>)}</section>}
                                     <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6"><label className="block text-xs font-bold text-slate-600 mb-2">Observación o retroalimentación (opcional)</label><textarea value={observacionMultiple} onChange={e=>setObservacionMultiple(e.target.value)} placeholder="Comentario para el reporte de este estudiante..." className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-24" /><div className="flex flex-wrap gap-3 justify-end mt-4"><button type="button" onClick={()=>setActiveTab('config_multiple')} className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600">Volver a editar</button><button type="button" onClick={guardarCorreccionMultiple} className="px-5 py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold inline-flex items-center gap-2"><Save size={16}/>{editingId?'Actualizar corrección':'Guardar corrección y nota'}</button></div></div>
                                 </div>
                             )}
