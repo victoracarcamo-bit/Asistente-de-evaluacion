@@ -195,6 +195,19 @@
             const [isIAEscalaConfigOpen, setIsIAEscalaConfigOpen] = useState(false);
             const [iaEscalaParams, setIaEscalaParams] = useState({ indicadores: 5 });
 
+            // --- CUARTO INSTRUMENTO: EVALUACIÓN MÚLTIPLE ---
+            const [multipleActual, setMultipleActual] = useState({
+                titulo: 'Evaluación Múltiple',
+                objetivo: '',
+                instrucciones: 'Lee atentamente cada pregunta. Marca solo una alternativa por pregunta de selección múltiple y responde las preguntas de desarrollo con claridad.'
+            });
+            const [multipleSeleccion, setMultipleSeleccion] = useState([]);
+            const [multipleDesarrollo, setMultipleDesarrollo] = useState([]);
+            const [iaMultipleParams, setIaMultipleParams] = useState({ seleccion: 5, alternativas: 4, desarrollo: 2 });
+            const [isIAMultipleConfigOpen, setIsIAMultipleConfigOpen] = useState(false);
+            const [isGeneratingMultiple, setIsGeneratingMultiple] = useState(false);
+            const [isExportingMultiple, setIsExportingMultiple] = useState(false);
+
             const [retroalimentacion, setRetroalimentacion] = useState('');
             const [isGeneratingRetro, setIsGeneratingRetro] = useState(false);
             
@@ -691,6 +704,329 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
                     }
                 } finally { 
                     setIsGeneratingEscala(false); 
+                }
+            };
+
+            // --- EDICIÓN, GENERACIÓN IA Y DESCARGAS DE EVALUACIÓN MÚLTIPLE ---
+            const letrasMultiple = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const crearPreguntaMultiple = (cantidad = 4) => ({
+                id: `${Date.now()}-${Math.random()}`,
+                enunciado: '',
+                alternativas: Array.from({ length: cantidad }, () => ''),
+                correcta: 0,
+                explicacion: ''
+            });
+            const crearDesarrolloMultiple = () => ({
+                id: `${Date.now()}-${Math.random()}`,
+                enunciado: '',
+                respuestaEsperada: '',
+                criterios: ''
+            });
+            const editarMultipleSeleccion = (id, cambios) =>
+                setMultipleSeleccion(prev => prev.map(p => p.id === id ? { ...p, ...cambios } : p));
+            const editarMultipleDesarrollo = (id, cambios) =>
+                setMultipleDesarrollo(prev => prev.map(p => p.id === id ? { ...p, ...cambios } : p));
+
+            const generarMultipleIA = async () => {
+                const cantidadSeleccion = Number(iaMultipleParams.seleccion);
+                const alternativas = Number(iaMultipleParams.alternativas);
+                const cantidadDesarrollo = Number(iaMultipleParams.desarrollo);
+                if (!Number.isInteger(cantidadSeleccion) || cantidadSeleccion < 0 || cantidadSeleccion > 30 ||
+                    !Number.isInteger(cantidadDesarrollo) || cantidadDesarrollo < 0 || cantidadDesarrollo > 20 ||
+                    ![3, 4, 5].includes(alternativas) || cantidadSeleccion + cantidadDesarrollo === 0) {
+                    showAlert('Configura de 0 a 30 preguntas de selección múltiple, de 0 a 20 de desarrollo, de 3 a 5 alternativas, y al menos una pregunta total.');
+                    return;
+                }
+                if (!curriculumParams.curso || !curriculumParams.asignatura || !curriculumParams.unidad) {
+                    showAlert('Selecciona curso, asignatura y unidad antes de generar preguntas con IA.');
+                    return;
+                }
+                setIsIAMultipleConfigOpen(false);
+                setIsGeneratingMultiple(true);
+                try {
+                    const prompt = `Actúa como especialista en evaluación escolar y Currículum Nacional de Chile. Crea una evaluación para:
+Curso: ${curriculumParams.curso}
+Asignatura: ${curriculumParams.asignatura}
+Unidad: ${curriculumParams.unidad}
+Actividad o producto: ${curriculumParams.tipoProducto || 'Evaluación escrita'}
+Objetivo de aprendizaje o temática: ${curriculumParams.objetivo || multipleActual.objetivo || 'Aprendizajes de la unidad señalada'}
+
+CANTIDADES EXACTAS:
+- ${cantidadSeleccion} preguntas de selección múltiple, con EXACTAMENTE ${alternativas} alternativas distintas cada una.
+- ${cantidadDesarrollo} preguntas abiertas de desarrollo.
+
+Requisitos pedagógicos: nivel adecuado al curso; enunciados claros; alternativas plausibles con UNA sola respuesta correcta; evitar pistas obvias, preguntas duplicadas y sesgos. Para cada pregunta de selección identifica correcta como índice entero comenzando desde 0 e incluye explicación breve. Para cada pregunta de desarrollo incluye una respuesta esperada concreta y criterios objetivos de corrección (arreglo de cadenas). No omitas campos. Responde SOLAMENTE con un objeto JSON válido, sin bloques Markdown, con este esquema:
+{"seleccion":[{"enunciado":"Pregunta","alternativas":["Opción A","Opción B","Opción C"],"correcta":0,"explicacion":"Justificación"}],"desarrollo":[{"enunciado":"Pregunta abierta","respuestaEsperada":"Respuesta orientativa","criterios":["Criterio 1","Criterio 2"]}]}
+El arreglo alternativas debe tener exactamente ${alternativas} entradas, no necesariamente las tres del ejemplo. Usa español de Chile.`;
+                    const salida = await llamarIA(prompt, 'Eres un especialista en pedagogía. Responde exclusivamente JSON parseable, sin encabezados ni markdown.');
+                    if (!salida) throw new Error('La IA no devolvió contenido.');
+                    const inicio = salida.indexOf('{');
+                    const fin = salida.lastIndexOf('}');
+                    if (inicio < 0 || fin <= inicio) throw new Error('La IA no devolvió un objeto JSON válido.');
+                    const json = JSON.parse(salida.slice(inicio, fin + 1));
+                    if (!Array.isArray(json.seleccion) || !Array.isArray(json.desarrollo) ||
+                        json.seleccion.length !== cantidadSeleccion || json.desarrollo.length !== cantidadDesarrollo) {
+                        throw new Error('La IA no respetó la cantidad de preguntas solicitadas. Intenta generar nuevamente.');
+                    }
+                    const seleccion = json.seleccion.map((p, indice) => {
+                        if (typeof p.enunciado !== 'string' || !p.enunciado.trim() ||
+                            !Array.isArray(p.alternativas) || p.alternativas.length !== alternativas ||
+                            !p.alternativas.every(a => typeof a === 'string' && a.trim())) {
+                            throw new Error(`La pregunta ${indice + 1} tiene alternativas incompletas.`);
+                        }
+                        const correcta = Number(p.correcta);
+                        if (!Number.isInteger(correcta) || correcta < 0 || correcta >= alternativas) {
+                            throw new Error(`La pregunta ${indice + 1} no tiene una respuesta correcta válida.`);
+                        }
+                        return { id: `${Date.now()}-s-${indice}`, enunciado: p.enunciado.trim(),
+                            alternativas: p.alternativas.map(a => a.trim()), correcta,
+                            explicacion: typeof p.explicacion === 'string' ? p.explicacion : '' };
+                    });
+                    const desarrollo = json.desarrollo.map((p, indice) => {
+                        if (typeof p.enunciado !== 'string' || !p.enunciado.trim() ||
+                            typeof p.respuestaEsperada !== 'string' || !p.respuestaEsperada.trim()) {
+                            throw new Error(`La pregunta de desarrollo ${indice + 1} está incompleta.`);
+                        }
+                        return { id: `${Date.now()}-d-${indice}`, enunciado: p.enunciado.trim(),
+                            respuestaEsperada: p.respuestaEsperada.trim(),
+                            criterios: Array.isArray(p.criterios) ? p.criterios.join('\n') : (typeof p.criterios === 'string' ? p.criterios : '') };
+                    });
+                    // Confirmar estructura completa ANTES de modificar la evaluación que está editando el usuario.
+                    setMultipleSeleccion(seleccion);
+                    setMultipleDesarrollo(desarrollo);
+                    setMultipleActual(prev => ({ ...prev,
+                        titulo: `Evaluación de ${curriculumParams.asignatura} - ${curriculumParams.curso}`,
+                        objetivo: curriculumParams.objetivo || prev.objetivo }));
+                } catch (error) {
+                    console.error('Error al generar evaluación múltiple:', error);
+                    if (error.message !== 'Error al conectar con la API de IA') {
+                        showAlert(`No fue posible procesar la evaluación generada. ${error.message}`);
+                    }
+                } finally {
+                    setIsGeneratingMultiple(false);
+                }
+            };
+
+            const comprobarMultiple = () => {
+                if (multipleSeleccion.length + multipleDesarrollo.length === 0) {
+                    showAlert('Agrega o genera al menos una pregunta antes de descargar.');
+                    return false;
+                }
+                for (const [i, p] of multipleSeleccion.entries()) {
+                    if (!p.enunciado.trim() || p.alternativas.length < 3 || p.alternativas.some(a => !a.trim()) ||
+                        p.correcta < 0 || p.correcta >= p.alternativas.length) {
+                        showAlert(`Completa el enunciado, todas las alternativas y la respuesta correcta de la pregunta ${i + 1}.`);
+                        return false;
+                    }
+                }
+                for (const [i, p] of multipleDesarrollo.entries()) {
+                    if (!p.enunciado.trim()) {
+                        showAlert(`Completa el enunciado de la pregunta de desarrollo ${i + 1}.`);
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            // PDF vectorial: texto seleccionable, páginas A4 reales y bloques de preguntas no divididos.
+            const exportarMultiplePDF = async (incluirPauta = false) => {
+                if (!comprobarMultiple()) return;
+                setIsExportingMultiple(true);
+                try {
+                    if (!window.jspdf?.jsPDF) throw new Error('La librería jsPDF no se encuentra disponible.');
+                    const pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const margen = 19, ancho = 172, tope = 277;
+                    let y = 20;
+                    const nuevaPagina = () => { pdf.addPage(); y = 20; };
+                    const reservar = (alto) => { if (y + alto > tope && y > 20) nuevaPagina(); };
+                    const lineas = (texto, tam = 10, anchoTexto = ancho) => {
+                        pdf.setFontSize(tam);
+                        return pdf.splitTextToSize(String(texto || ''), anchoTexto);
+                    };
+                    const bloque = (texto, tam = 10, negrita = false, sangria = 0, espacio = 3) => {
+                        const partes = lineas(texto, tam, ancho - sangria);
+                        const salto = tam * 0.3528 * 1.42;
+                        pdf.setFont('helvetica', negrita ? 'bold' : 'normal');
+                        pdf.setFontSize(tam);
+                        for (const linea of partes) {
+                            reservar(salto);
+                            pdf.text(linea, margen + sangria, y);
+                            y += salto;
+                        }
+                        y += espacio;
+                    };
+                    pdf.setTextColor(15, 23, 42);
+                    pdf.setFont('helvetica', 'bold');
+                    bloque(multipleActual.titulo || 'Evaluación Múltiple', 17, true, 0, 3);
+                    pdf.setDrawColor(79, 70, 229);
+                    pdf.setLineWidth(0.85);
+                    pdf.line(margen, y, 210 - margen, y);
+                    y += 8;
+                    bloque('Nombre: __________________________________________________________', 10, false, 0, 4);
+                    bloque(`Curso: ${curriculumParams.curso || '______________________'}       Fecha: _____________________`, 10, false, 0, 5);
+                    if (multipleActual.objetivo.trim()) bloque(`Objetivo: ${multipleActual.objetivo}`, 9, false, 0, 3);
+                    if (multipleActual.instrucciones.trim()) bloque(`Instrucciones: ${multipleActual.instrucciones}`, 9, false, 0, 6);
+                    const seccion = titulo => {
+                        reservar(15); y += 3;
+                        pdf.setFillColor(238, 242, 255);
+                        pdf.rect(margen, y - 5, ancho, 10, 'F');
+                        pdf.setTextColor(49, 46, 129);
+                        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12);
+                        pdf.text(titulo, margen + 3, y + 1.5);
+                        pdf.setTextColor(15, 23, 42); y += 13;
+                    };
+                    if (multipleSeleccion.length) {
+                        seccion('I. SELECCIÓN MÚLTIPLE');
+                        multipleSeleccion.forEach((p, i) => {
+                            const altoPregunta = lineas(`${i+1}. ${p.enunciado}`, 10).length * 5.1 +
+                                p.alternativas.reduce((acc, alt) => acc + lineas(alt, 9.5, ancho-12).length * 4.8 + 1, 0) + 8;
+                            reservar(Math.min(altoPregunta, 250));
+                            bloque(`${i + 1}. ${p.enunciado}`, 10, true, 0, 2);
+                            p.alternativas.forEach((alt, j) => bloque(`${letrasMultiple[j]})  ${alt}`, 9.5, false, 7, 1));
+                            y += 5;
+                        });
+                    }
+                    if (multipleDesarrollo.length) {
+                        seccion('II. DESARROLLO');
+                        multipleDesarrollo.forEach((p, i) => {
+                            const num = multipleSeleccion.length + i + 1;
+                            const alto = lineas(`${num}. ${p.enunciado}`, 10).length * 5.1 + 56;
+                            reservar(Math.min(alto, 250));
+                            bloque(`${num}. ${p.enunciado}`, 10, true, 0, 4);
+                            for (let k = 0; k < 7; k++) {
+                                reservar(7.2);
+                                pdf.setDrawColor(205, 213, 224);
+                                pdf.setLineWidth(0.25);
+                                pdf.line(margen + 2, y + 2.8, margen + ancho - 2, y + 2.8);
+                                y += 7.2;
+                            }
+                            y += 5;
+                        });
+                    }
+                    if (incluirPauta) {
+                        nuevaPagina();
+                        bloque('PAUTA DE CORRECCIÓN – VERSIÓN DOCENTE', 15, true, 0, 5);
+                        bloque(multipleActual.titulo || 'Evaluación Múltiple', 10, false, 0, 7);
+                        if (multipleSeleccion.length) {
+                            seccion('RESPUESTAS CORRECTAS – SELECCIÓN MÚLTIPLE');
+                            multipleSeleccion.forEach((p, i) => {
+                                bloque(`${i+1}. ${letrasMultiple[p.correcta]}) ${p.alternativas[p.correcta]}`, 10, true, 0, 1);
+                                if (p.explicacion?.trim()) bloque(`Fundamento: ${p.explicacion}`, 9, false, 4, 3);
+                            });
+                        }
+                        if (multipleDesarrollo.length) {
+                            seccion('RESPUESTAS ESPERADAS – DESARROLLO');
+                            multipleDesarrollo.forEach((p, i) => {
+                                bloque(`${multipleSeleccion.length+i+1}. ${p.enunciado}`, 10, true, 0, 2);
+                                bloque(`Respuesta orientativa: ${p.respuestaEsperada || 'Pendiente de completar por el docente.'}`, 9.5, false, 3, 2);
+                                if (p.criterios?.trim()) bloque(`Criterios de corrección: ${p.criterios}`, 9, false, 3, 6);
+                            });
+                        }
+                    }
+                    const totalPaginas = pdf.internal.getNumberOfPages();
+                    for (let n = 1; n <= totalPaginas; n++) {
+                        pdf.setPage(n);
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(8); pdf.setTextColor(100, 116, 139);
+                        pdf.text(`Página ${n} de ${totalPaginas}`, 210 - margen, 288, { align: 'right' });
+                        pdf.setTextColor(15, 23, 42);
+                    }
+                    const nombre = incluirPauta ? 'Evaluacion_Multiple_Docente_con_Respuestas.pdf' : 'Evaluacion_Multiple_Estudiante.pdf';
+                    descargarArchivo(pdf.output('blob'), nombre);
+                } catch (error) {
+                    console.error('Error PDF Evaluación Múltiple:', error);
+                    showAlert(`No fue posible generar el PDF: ${error.message}`);
+                } finally {
+                    setIsExportingMultiple(false);
+                }
+            };
+
+            const escaparMultipleHTML = (texto) => String(texto ?? '')
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, '<br>');
+
+            // JPG estudiante: construir páginas imprimibles antes de fotografiarlas para no cortar preguntas.
+            const exportarMultipleJPG = async () => {
+                if (!comprobarMultiple()) return;
+                setIsExportingMultiple(true);
+                let soporte;
+                try {
+                    if (!window.html2canvas) throw new Error('La librería html2canvas no se encuentra disponible.');
+                    soporte = document.createElement('div');
+                    Object.assign(soporte.style, { position: 'fixed', left: '-10000px', top: '0', width: '794px', zIndex: '-1', background: '#fff' });
+                    document.body.appendChild(soporte);
+                    const paginas = [];
+                    let contenido;
+                    const crearPagina = () => {
+                        const pagina = document.createElement('div');
+                        Object.assign(pagina.style, { width: '794px', height: '1123px', padding: '68px', boxSizing: 'border-box',
+                            background: '#ffffff', color: '#0f172a', fontFamily: 'Arial, sans-serif', position: 'relative', overflow: 'hidden' });
+                        contenido = document.createElement('div');
+                        Object.assign(contenido.style, { width: '658px', height: '975px', overflow: 'visible', fontSize: '14px', lineHeight: '1.55' });
+                        pagina.appendChild(contenido);
+                        const pie = document.createElement('div');
+                        Object.assign(pie.style, { position: 'absolute', bottom: '35px', right: '68px', fontSize: '11px', color: '#64748b' });
+                        pie.textContent = `Página ${paginas.length+1}`;
+                        pagina.appendChild(pie);
+                        soporte.appendChild(pagina); paginas.push(pagina);
+                    };
+                    const insertar = (html) => {
+                        const nodo = document.createElement('div');
+                        nodo.style.breakInside = 'avoid';
+                        nodo.innerHTML = html;
+                        contenido.appendChild(nodo);
+                        if (contenido.scrollHeight > 975 && contenido.children.length > 1) {
+                            contenido.removeChild(nodo);
+                            crearPagina();
+                            contenido.appendChild(nodo);
+                        }
+                        if (contenido.scrollHeight > 975) {
+                            throw new Error('Una pregunta o bloque de texto es demasiado extenso para una página JPG. Reduce su longitud y vuelve a descargar.');
+                        }
+                    };
+                    crearPagina();
+                    insertar(`<div style="border-bottom:4px solid #4f46e5;padding-bottom:15px;margin-bottom:20px"><h1 style="font-size:25px;margin:0 0 5px;font-weight:900">${escaparMultipleHTML(multipleActual.titulo || 'Evaluación Múltiple')}</h1><div style="color:#64748b;font-size:13px">${escaparMultipleHTML(curriculumParams.asignatura || '')}</div></div><div style="background:#f8fafc;border:1px solid #cbd5e1;padding:14px;border-radius:8px;margin-bottom:14px"><strong>Nombre:</strong> ________________________________________<div style="margin-top:12px"><strong>Curso:</strong> ${escaparMultipleHTML(curriculumParams.curso || '________________')} &nbsp;&nbsp;&nbsp; <strong>Fecha:</strong> ______________</div></div>${multipleActual.objetivo ? `<p style="margin:0 0 10px;font-size:13px"><strong>Objetivo:</strong> ${escaparMultipleHTML(multipleActual.objetivo)}</p>` : ''}${multipleActual.instrucciones ? `<p style="margin:0 0 20px;font-size:13px"><strong>Instrucciones:</strong> ${escaparMultipleHTML(multipleActual.instrucciones)}</p>` : ''}`);
+                    const encabezadoSeccion = titulo => `<div style="background:#eef2ff;border-left:4px solid #4f46e5;border-radius:4px;color:#312e81;padding:10px 12px;margin:15px 0 13px;font-weight:800;font-size:15px">${titulo}</div>`;
+                    if (multipleSeleccion.length) {
+                        insertar(encabezadoSeccion('I. SELECCIÓN MÚLTIPLE'));
+                        multipleSeleccion.forEach((p,i) => insertar(`<div style="margin-bottom:17px"><div style="font-weight:700;margin-bottom:7px">${i+1}. ${escaparMultipleHTML(p.enunciado)}</div>${p.alternativas.map((a,j) => `<div style="margin:5px 0 5px 15px">${letrasMultiple[j]}) &nbsp; ${escaparMultipleHTML(a)}</div>`).join('')}</div>`));
+                    }
+                    if (multipleDesarrollo.length) {
+                        insertar(encabezadoSeccion('II. DESARROLLO'));
+                        multipleDesarrollo.forEach((p,i) => insertar(`<div style="margin-bottom:16px"><div style="font-weight:700;margin-bottom:9px">${multipleSeleccion.length+i+1}. ${escaparMultipleHTML(p.enunciado)}</div>${Array.from({length:6},()=>'<div style="height:25px;border-bottom:1px solid #cbd5e1"></div>').join('')}</div>`));
+                    }
+                    const imagenes = [];
+                    for (const pagina of paginas) {
+                        const canvas = await window.html2canvas(pagina, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+                        imagenes.push(canvas);
+                    }
+                    const anchoTotal = imagenes[0].width;
+                    const altoTotal = imagenes.reduce((t,c) => t+c.height, 0);
+                    // Un único JPG cuando es técnicamente seguro; para documentos muy extensos, un JPG por página.
+                    if (altoTotal <= 14000 && anchoTotal*altoTotal <= 30000000) {
+                        const combinado = document.createElement('canvas');
+                        combinado.width = anchoTotal; combinado.height = altoTotal;
+                        const ctx = combinado.getContext('2d');
+                        let offset = 0;
+                        imagenes.forEach(c => { ctx.drawImage(c,0,offset); offset += c.height; });
+                        const blob = await new Promise(resolve => combinado.toBlob(resolve, 'image/jpeg', 0.94));
+                        if (!blob) throw new Error('No fue posible codificar la imagen JPG.');
+                        descargarArchivo(blob, 'Evaluacion_Multiple_Estudiante.jpg');
+                    } else {
+                        for (let i=0; i<imagenes.length; i++) {
+                            const blob = await new Promise(resolve => imagenes[i].toBlob(resolve, 'image/jpeg', 0.94));
+                            if (!blob) throw new Error('No fue posible codificar una página JPG.');
+                            descargarArchivo(blob, `Evaluacion_Multiple_Estudiante_Pagina_${i+1}.jpg`);
+                            await new Promise(r => setTimeout(r, 240));
+                        }
+                        showAlert('La evaluación es extensa: se generó un JPG de alta resolución por página para conservar la legibilidad. Si el navegador solicita permiso para varias descargas, autorízalo.');
+                    }
+                } catch(error) {
+                    console.error('Error JPG Evaluación Múltiple:', error);
+                    showAlert(`No fue posible generar el JPG: ${error.message}`);
+                } finally {
+                    if (soporte?.parentNode) soporte.parentNode.removeChild(soporte);
+                    setIsExportingMultiple(false);
                 }
             };
 
@@ -1543,6 +1879,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     rubricaActual, rubricaGrid,
                     cotejoActual, cotejoIndicadores,
                     escalaActual, escalaColumnas, escalaIndicadores,
+                    multipleActual, multipleSeleccion, multipleDesarrollo, curriculumParams,
                     resultados,
                     listaEstudiantes,
                     totalEstudiantesCargados,
@@ -1574,6 +1911,10 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                         if(data.escalaActual) setEscalaActual(data.escalaActual);
                         if(data.escalaColumnas) setEscalaColumnas(data.escalaColumnas);
                         if(data.escalaIndicadores) setEscalaIndicadores(data.escalaIndicadores);
+                        if(data.multipleActual) setMultipleActual(data.multipleActual);
+                        if(Array.isArray(data.multipleSeleccion)) setMultipleSeleccion(data.multipleSeleccion);
+                        if(Array.isArray(data.multipleDesarrollo)) setMultipleDesarrollo(data.multipleDesarrollo);
+                        if(data.curriculumParams) setCurriculumParams(data.curriculumParams);
                         if(data.resultados) setResultados(data.resultados);
                         if(data.listaEstudiantes) setListaEstudiantes(data.listaEstudiantes);
                         if(data.totalEstudiantesCargados !== undefined) {
@@ -1620,10 +1961,10 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     
                     {showInitialPopup && (
                         <div className="fixed inset-0 bg-neutral-900/80 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
-                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-10 text-center animate-in zoom-in-95">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-10 text-center animate-in zoom-in-95">
                                 <h2 className="text-3xl font-black text-neutral-900 mb-4">¡Bienvenido al Asistente!</h2>
-                                <p className="text-neutral-500 mb-10 text-lg">Selecciona el Instrumento de Evaluación que deseas elaborar para comenzar</p>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <p className="text-neutral-500 mb-6 text-lg">Selecciona el Instrumento de Evaluación que deseas elaborar para comenzar</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                     <button onClick={() => { setTipoInstrumento('rubrica'); setActiveTab('config_rubrica'); setShowInitialPopup(false); }} className="flex flex-col items-center gap-4 p-8 border-2 border-indigo-100 hover:border-indigo-500 hover:bg-indigo-50 text-indigo-900 rounded-2xl transition-all shadow-sm hover:shadow-md group">
                                         <div className="bg-indigo-100 p-4 rounded-xl group-hover:scale-110 transition-transform"><FileSpreadsheet size={40} className="text-indigo-600" /></div>
                                         <span className="font-bold text-lg">Rúbrica</span>
@@ -1635,6 +1976,10 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                     <button onClick={() => { setTipoInstrumento('cotejo'); setActiveTab('config_cotejo'); setShowInitialPopup(false); }} className="flex flex-col items-center gap-4 p-8 border-2 border-amber-100 hover:border-amber-500 hover:bg-amber-50 text-amber-900 rounded-2xl transition-all shadow-sm hover:shadow-md group">
                                         <div className="bg-amber-100 p-4 rounded-xl group-hover:scale-110 transition-transform"><ListTodo size={40} className="text-amber-600" /></div>
                                         <span className="font-bold text-lg">Lista de Cotejo</span>
+                                    </button>
+                                    <button onClick={() => { setTipoInstrumento('multiple'); setActiveTab('config_multiple'); setShowInitialPopup(false); }} className="flex flex-col items-center gap-4 p-8 border-2 border-purple-100 hover:border-purple-500 hover:bg-purple-50 text-purple-900 rounded-2xl transition-all shadow-sm hover:shadow-md group">
+                                        <div className="bg-purple-100 p-4 rounded-xl group-hover:scale-110 transition-transform"><BookText size={40} className="text-purple-600" /></div>
+                                        <span className="font-bold text-lg">Evaluación Múltiple</span>
                                     </button>
                                 </div>
                             </div>
@@ -1834,10 +2179,11 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                             <button onClick={() => { setActiveTab('config_rubrica'); setTipoInstrumento('rubrica'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_rubrica' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><FileSpreadsheet size={16} /> Rúbrica</button>
                                             <button onClick={() => { setActiveTab('config_escala'); setTipoInstrumento('escala'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_escala' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><SlidersHorizontal size={16} /> Escala de Apreciación</button>
                                             <button onClick={() => { setActiveTab('config_cotejo'); setTipoInstrumento('cotejo'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_cotejo' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><ListTodo size={16} /> Lista de Cotejo</button>
+                                            <button onClick={() => { setActiveTab('config_multiple'); setTipoInstrumento('multiple'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_multiple' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><BookText size={16} /> Evaluación Múltiple</button>
                                         </div>
                                     )}
                                 </div>
-                                <TabButton active={activeTab === 'evaluar'} onClick={() => setActiveTab('evaluar')} icon={<GraduationCap size={18}/>} label="Evaluar Alumnos" />
+                                {tipoInstrumento !== 'multiple' && <TabButton active={activeTab === 'evaluar'} onClick={() => setActiveTab('evaluar')} icon={<GraduationCap size={18}/>} label="Evaluar Alumnos" />}
                                 <TabButton active={activeTab === 'reporte'} onClick={() => setActiveTab('reporte')} icon={<BarChart3 size={18}/>} label="Reporte Consolidado" badge={resultados.length} />
                                 <TabButton active={activeTab === 'instructivo'} onClick={() => setActiveTab('instructivo')} icon={<HelpCircle size={18}/>} label="Guía de Uso" />
                             </nav>
@@ -2261,8 +2607,99 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                 </div>
                             )}
 
+                            {/* ====== PESTAÑA: EVALUACIÓN MÚLTIPLE ====== */}
+                            {activeTab === 'config_multiple' && (
+                                <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">1</div>
+                                        <h2 className="text-2xl font-black text-neutral-900">Define tu Evaluación Múltiple</h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 border-l-4 border-indigo-100 pl-4 ml-3">
+                                        <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+                                            <h3 className="font-bold flex items-center gap-2"><Edit3 size={20} className="text-indigo-600" /> Información del Instrumento</h3>
+                                            <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Título</label><input type="text" value={multipleActual.titulo} onChange={e=>setMultipleActual({...multipleActual,titulo:e.target.value})} className="w-full p-3 border border-neutral-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                            <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Objetivo de evaluación</label><textarea value={multipleActual.objetivo} onChange={e=>setMultipleActual({...multipleActual,objetivo:e.target.value})} className="w-full p-3 border border-neutral-200 rounded-xl text-sm min-h-[76px] focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                            <div><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Instrucciones para estudiantes</label><textarea value={multipleActual.instrucciones} onChange={e=>setMultipleActual({...multipleActual,instrucciones:e.target.value})} className="w-full p-3 border border-neutral-200 rounded-xl text-sm min-h-[92px] focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                        </div>
+                                        <div className="bg-indigo-50/70 p-6 rounded-2xl border border-indigo-100 shadow-inner flex flex-col justify-between">
+                                            <div>
+                                                <h3 className="text-sm font-black text-indigo-900 flex items-center gap-2 mb-4"><BookText size={18} className="text-indigo-600"/> Generar preguntas con Asistente IA</h3>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div><label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1.5">Curso</label><select value={curriculumParams.curso} onChange={e=>setCurriculumParams({...curriculumParams,curso:e.target.value,asignatura:'',unidad:''})} className="w-full p-2.5 text-sm border border-indigo-200 rounded-lg bg-white"><option value="">Seleccionar...</option>{CURSOS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                    <div><label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1.5">Asignatura</label><select value={curriculumParams.asignatura} onChange={e=>setCurriculumParams({...curriculumParams,asignatura:e.target.value,unidad:''})} disabled={!curriculumParams.curso} className="w-full p-2.5 text-sm border border-indigo-200 rounded-lg bg-white disabled:opacity-50"><option value="">Seleccionar...</option>{ASIGNATURAS.map(a=><option key={a} value={a}>{a}</option>)}</select></div>
+                                                    <div><label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1.5">Unidad</label><select value={curriculumParams.unidad} onChange={e=>setCurriculumParams({...curriculumParams,unidad:e.target.value})} disabled={!curriculumParams.asignatura} className="w-full p-2.5 text-sm border border-indigo-200 rounded-lg bg-white disabled:opacity-50"><option value="">Seleccionar...</option>{UNIDADES.map(u=><option key={u} value={u}>{u}</option>)}</select></div>
+                                                    <div><label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1.5">Actividad</label><select value={curriculumParams.tipoProducto} onChange={e=>setCurriculumParams({...curriculumParams,tipoProducto:e.target.value})} className="w-full p-2.5 text-sm border border-indigo-200 rounded-lg bg-white"><option value="">Evaluación escrita</option>{TIPOS_PRODUCTO.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+                                                </div>
+                                                <div className="mt-4"><label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1.5">Objetivos de aprendizaje / Contenido</label><textarea value={curriculumParams.objetivo} onChange={e=>setCurriculumParams({...curriculumParams,objetivo:e.target.value})} placeholder="Especifica los OA, contenidos o habilidades a evaluar..." className="w-full p-2.5 text-sm border border-indigo-200 rounded-lg bg-white min-h-[85px]" /></div>
+                                            </div>
+                                            <button onClick={()=>setIsIAMultipleConfigOpen(true)} disabled={isGeneratingMultiple || !curriculumParams.curso || !curriculumParams.asignatura || !curriculumParams.unidad} className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white p-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors">
+                                                {isGeneratingMultiple ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} {isGeneratingMultiple ? 'Generando preguntas...' : 'Generar Evaluación con IA'}
+                                            </button>
+                                            {isGeneratingMultiple && <p className="text-xs text-indigo-700 mt-3 text-center" role="status">La IA está preparando las preguntas y su pauta de corrección.</p>}
+                                        </div>
+                                    </div>
+
+                                    {isIAMultipleConfigOpen && (
+                                        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Configurar generación de evaluación múltiple">
+                                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 sm:p-8">
+                                                <h3 className="text-lg font-black text-neutral-900 mb-2">Configurar preguntas IA</h3>
+                                                <p className="text-xs text-neutral-500 mb-5">Las nuevas preguntas reemplazarán las que aparecen actualmente en el editor. Puedes agregar o editar preguntas después.</p>
+                                                <div className="space-y-4">
+                                                    <div><label className="block text-xs font-bold text-neutral-600 uppercase mb-1.5">Preguntas de selección múltiple (0 a 30)</label><input aria-label="Cantidad de preguntas de selección múltiple" type="number" min="0" max="30" step="1" value={iaMultipleParams.seleccion} onChange={e=>setIaMultipleParams({...iaMultipleParams,seleccion:e.target.value})} className="w-full p-3 border border-neutral-300 rounded-lg" /></div>
+                                                    <div><label className="block text-xs font-bold text-neutral-600 uppercase mb-1.5">Alternativas por pregunta</label><select aria-label="Cantidad de alternativas por pregunta" value={iaMultipleParams.alternativas} onChange={e=>setIaMultipleParams({...iaMultipleParams,alternativas:Number(e.target.value)})} className="w-full p-3 border border-neutral-300 rounded-lg bg-white"><option value="3">3 (A - C)</option><option value="4">4 (A - D)</option><option value="5">5 (A - E)</option></select></div>
+                                                    <div><label className="block text-xs font-bold text-neutral-600 uppercase mb-1.5">Preguntas de desarrollo (0 a 20)</label><input aria-label="Cantidad de preguntas de desarrollo" type="number" min="0" max="20" step="1" value={iaMultipleParams.desarrollo} onChange={e=>setIaMultipleParams({...iaMultipleParams,desarrollo:e.target.value})} className="w-full p-3 border border-neutral-300 rounded-lg" /></div>
+                                                </div>
+                                                <div className="mt-6 flex justify-end gap-3"><button onClick={()=>setIsIAMultipleConfigOpen(false)} className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg font-bold text-sm">Cancelar</button><button onClick={generarMultipleIA} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm">Generar preguntas</button></div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">2</div><h2 className="text-2xl font-black text-neutral-900">Edita y Ajusta</h2>
+                                    </div>
+                                    <div className="border-l-4 border-indigo-100 pl-4 ml-3 space-y-6">
+                                        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                                            <div className="flex flex-wrap justify-between items-center gap-3 mb-5"><h3 className="text-lg font-bold flex items-center gap-2"><ListTodo size={19} className="text-indigo-600"/> Sección I: Selección múltiple <span className="text-xs font-bold text-neutral-400">({multipleSeleccion.length})</span></h3><button onClick={()=>setMultipleSeleccion(prev=>[...prev,crearPreguntaMultiple(Number(iaMultipleParams.alternativas)||4)])} className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-2 rounded-lg text-xs font-bold inline-flex items-center gap-1"><Plus size={15}/> Agregar pregunta</button></div>
+                                            {multipleSeleccion.length===0 && <p className="text-sm text-neutral-400 italic bg-neutral-50 rounded-xl p-4">No hay preguntas de selección múltiple. Genera preguntas con IA o agrégalas manualmente.</p>}
+                                            <div className="space-y-5">{multipleSeleccion.map((p,i)=>(
+                                                <div key={p.id} className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
+                                                    <div className="flex items-start gap-3"><div className="bg-indigo-100 text-indigo-700 rounded-lg px-3 py-2 text-xs font-black">{i+1}</div><textarea aria-label={`Enunciado pregunta ${i+1}`} value={p.enunciado} onChange={e=>editarMultipleSeleccion(p.id,{enunciado:e.target.value})} placeholder="Escribe el enunciado de la pregunta..." className="w-full p-3 bg-white border border-neutral-200 rounded-lg text-sm min-h-[66px]"/><button aria-label={`Eliminar pregunta ${i+1}`} title="Eliminar pregunta" onClick={()=>setMultipleSeleccion(prev=>prev.filter(x=>x.id!==p.id))} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button></div>
+                                                    <div className="pl-0 sm:pl-12 space-y-2">{p.alternativas.map((alt,j)=>(<div key={j} className="flex items-center gap-2"><label className="text-xs font-black text-indigo-600 w-6 shrink-0">{letrasMultiple[j]})</label><input aria-label={`Alternativa ${letrasMultiple[j]} de pregunta ${i+1}`} value={alt} onChange={e=>editarMultipleSeleccion(p.id,{alternativas:p.alternativas.map((a,k)=>k===j?e.target.value:a)})} placeholder={`Alternativa ${letrasMultiple[j]}`} className="flex-1 min-w-0 p-2.5 bg-white border border-neutral-200 rounded-lg text-sm"/><label className="shrink-0 flex items-center gap-1 text-xs font-bold text-emerald-700" title="Seleccionar respuesta correcta"><input type="radio" name={`correcta-${p.id}`} checked={p.correcta===j} onChange={()=>editarMultipleSeleccion(p.id,{correcta:j})} /> <span className="hidden sm:inline">Correcta</span></label></div>))}</div>
+                                                    <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Justificación / pauta de respuesta (solo docente)</label><textarea value={p.explicacion || ''} onChange={e=>editarMultipleSeleccion(p.id,{explicacion:e.target.value})} placeholder="Explica por qué esta alternativa es la correcta" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[54px]"/></div>
+                                                    <div className="sm:pl-12 text-xs text-neutral-500">La respuesta correcta solo se incluirá en el PDF docente.</div>
+                                                </div>
+                                            ))}</div>
+                                        </div>
+                                        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                                            <div className="flex flex-wrap justify-between items-center gap-3 mb-5"><h3 className="text-lg font-bold flex items-center gap-2"><BookOpen size={19} className="text-indigo-600"/> Sección II: Desarrollo <span className="text-xs font-bold text-neutral-400">({multipleDesarrollo.length})</span></h3><button onClick={()=>setMultipleDesarrollo(prev=>[...prev,crearDesarrolloMultiple()])} className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-2 rounded-lg text-xs font-bold inline-flex items-center gap-1"><Plus size={15}/> Agregar pregunta</button></div>
+                                            {multipleDesarrollo.length===0 && <p className="text-sm text-neutral-400 italic bg-neutral-50 rounded-xl p-4">No hay preguntas de desarrollo. Genera preguntas con IA o agrégalas manualmente.</p>}
+                                            <div className="space-y-5">{multipleDesarrollo.map((p,i)=>(<div key={p.id} className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
+                                                <div className="flex items-start gap-3"><div className="bg-indigo-100 text-indigo-700 rounded-lg px-3 py-2 text-xs font-black">{multipleSeleccion.length+i+1}</div><textarea aria-label={`Enunciado desarrollo ${i+1}`} value={p.enunciado} onChange={e=>editarMultipleDesarrollo(p.id,{enunciado:e.target.value})} placeholder="Escribe una pregunta abierta..." className="w-full p-3 bg-white border border-neutral-200 rounded-lg text-sm min-h-[70px]"/><button aria-label={`Eliminar pregunta de desarrollo ${i+1}`} title="Eliminar pregunta" onClick={()=>setMultipleDesarrollo(prev=>prev.filter(x=>x.id!==p.id))} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button></div>
+                                                <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Respuesta esperada (solo docente)</label><textarea value={p.respuestaEsperada||''} onChange={e=>editarMultipleDesarrollo(p.id,{respuestaEsperada:e.target.value})} placeholder="Escribe la respuesta orientativa..." className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[75px]"/></div>
+                                                <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Criterios o elementos clave (solo docente)</label><textarea value={p.criterios||''} onChange={e=>editarMultipleDesarrollo(p.id,{criterios:e.target.value})} placeholder="Un criterio por línea..." className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[75px]"/></div>
+                                                <div className="sm:pl-12"><div className="font-bold text-xs text-neutral-400 mb-2">Vista previa del espacio de respuesta:</div><div className="space-y-5 py-2">{[0,1,2,3].map(n=><div key={n} className="border-b border-neutral-300"/>)}</div></div>
+                                            </div>))}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3"><div className="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">3</div><h2 className="text-2xl font-black text-neutral-900">Descarga tu Evaluación</h2></div>
+                                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-neutral-200 shadow-sm border-l-4 border-l-indigo-500 space-y-4">
+                                        <p className="text-sm text-neutral-600">Descarga el instrumento actualizado. La versión estudiante no contiene respuestas; la versión docente incorpora una pauta de corrección diferenciada. Los archivos se generan desde las preguntas que editaste arriba.</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <button disabled={isExportingMultiple || !multipleSeleccion.length && !multipleDesarrollo.length} onClick={()=>exportarMultiplePDF(false)} className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white p-3 rounded-xl text-sm font-bold"><FileText size={18}/> Descargar PDF – Estudiante</button>
+                                            <button disabled={isExportingMultiple || !multipleSeleccion.length && !multipleDesarrollo.length} onClick={()=>exportarMultiplePDF(true)} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white p-3 rounded-xl text-sm font-bold"><FileText size={18}/> Descargar PDF – Docente (con respuestas)</button>
+                                            <button disabled={isExportingMultiple || !multipleSeleccion.length && !multipleDesarrollo.length} onClick={exportarMultipleJPG} className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white p-3 rounded-xl text-sm font-bold"><FileImage size={18}/> Descargar JPG – Estudiante</button>
+                                        </div>
+                                        {isExportingMultiple && <div role="status" className="text-sm font-bold text-indigo-600 flex items-center gap-2"><Loader2 size={17} className="animate-spin"/> Preparando archivo para descarga...</div>}
+                                        <p className="text-xs text-neutral-400">Para evaluaciones muy extensas, el JPG se descargará en imágenes separadas por página para conservar la resolución. Puedes guardar tu trabajo desde «Guardar Sesión».</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* ====== PESTAÑA: EVALUAR ====== */}
-                            {activeTab === 'evaluar' && (
+                            {activeTab === 'evaluar' && tipoInstrumento === 'multiple' && (
+                                <div className="bg-white rounded-2xl border border-indigo-100 p-8 text-center"><BookText size={40} className="text-indigo-600 mx-auto mb-4"/><h2 className="text-2xl font-bold mb-2">Evaluación Múltiple</h2><p className="text-neutral-500 mb-5">La evaluación escrita se crea, edita y descarga desde su editor. La pestaña de calificación numérica corresponde a las rúbricas, listas de cotejo y escalas.</p><button onClick={()=>setActiveTab('config_multiple')} className="bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold">Volver al instrumento</button></div>
+                            )}
+                            {activeTab === 'evaluar' && tipoInstrumento !== 'multiple' && (
                                 <div className="w-full animate-in fade-in slide-in-from-bottom-4">
                                     <div className="bg-white p-8 rounded-2xl border border-neutral-200 shadow-sm relative overflow-hidden">
                                         
