@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asistente de Evaluación · Studio 7.1</title>
+    <title>Asistente de Evaluación · Studio 7.4</title>
     <meta name="theme-color" content="#4338ca">
     <meta name="description" content="Crea, corrige y exporta evaluaciones escolares. Herramienta docente con IA y respaldo local.">
     <style>
@@ -15,7 +15,24 @@
         button:not(:disabled):active { transform: scale(.985); }
         button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 3px solid #a5b4fc !important; outline-offset: 2px; }
         button:disabled { cursor: not-allowed !important; }
-        .studio-header { background: linear-gradient(115deg,#fff 0%,#fff 70%,#f5f3ff 100%); }
+        .studio-header { background: linear-gradient(115deg,#fff 0%,#fff 70%,#f5f3ff 100%); position:relative; z-index:80; isolation:isolate; overflow:visible !important; }
+        .ae-instrument-menu { position:absolute; top:100%; left:0; z-index:120; background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 20px 60px rgba(15,23,42,.23),0 2px 12px rgba(15,23,42,.08); opacity:1; isolation:isolate; }
+        .ae-instrument-menu button { position:relative; z-index:1; text-align:left; }
+        .ae-instrument-menu button:focus-visible { position:relative; z-index:2; }
+        @keyframes ae-indeterminate { from { transform:translateX(-105%); } to { transform:translateX(405%); } }
+        @keyframes ae-sweep { from { transform:translateY(-15%); opacity:0; } 20% {opacity:1;} 80% {opacity:1;} to { transform:translateY(285%); opacity:0;} }
+        @keyframes ae-shimmer { 0%{background-position:190% 0;} 100%{background-position:-190% 0;} }
+        @keyframes ae-breathe { 0%,100%{transform:scale(.96);opacity:.75;} 50%{transform:scale(1.045);opacity:1;} }
+        .ae-loading-panel { position:relative; isolation:isolate; overflow:hidden; border:1px solid #c7d2fe; border-radius:18px; background:linear-gradient(130deg,#eef2ff,#fff 65%,#f8fafc); padding:18px; }
+        .ae-loading-panel .ae-progress-track { height:5px; border-radius:999px; background:#dbeafe; overflow:hidden; }
+        .ae-loading-panel .ae-progress-track.ae-determinate::after { display:none; }
+        .ae-loading-panel .ae-progress-track::after { content:'';display:block;width:25%;height:100%;border-radius:999px;background:linear-gradient(90deg,#818cf8,#4f46e5);animation:ae-indeterminate 1.55s ease-in-out infinite; }
+        .ae-processing-visual { width:72px;height:80px;flex-shrink:0;position:relative;display:grid;place-items:center;border:1px solid #c7d2fe;border-radius:14px;background:#fff;overflow:hidden;color:#4f46e5; }
+        .ae-processing-visual::after {content:'';position:absolute;top:0;left:0;width:100%;height:24%;background:linear-gradient(to bottom,transparent,rgba(99,102,241,.19),transparent);border-bottom:1px solid rgba(99,102,241,.24);animation:ae-sweep 2.1s ease-in-out infinite;pointer-events:none;}
+        .ae-visual-skeleton { position:relative; overflow:hidden;border:1px solid #ddd6fe;border-radius:15px;background:#f8fafc;padding:14px; }
+        .ae-visual-skeleton .ae-shimmer {background:linear-gradient(110deg,#e0e7ff 20%,#f5f3ff 42%,#e0e7ff 64%);background-size:220% 100%;animation:ae-shimmer 1.35s linear infinite;}
+        .ae-visual-skeleton .ae-sparkle {animation:ae-breathe 1.6s ease-in-out infinite;}
+        @media (prefers-reduced-motion: reduce) {.ae-loading-panel .ae-progress-track::after,.ae-processing-visual::after,.ae-visual-skeleton .ae-shimmer,.ae-visual-skeleton .ae-sparkle{animation:none!important;} }
         .studio-content { background: radial-gradient(circle at 92% 0%, #eef2ff, transparent 36%), #f7f8fc; }
         .studio-toolbar { position: sticky; top: 0; z-index: 9; background: rgba(255,255,255,.95); backdrop-filter: blur(14px); border-bottom: 1px solid #e8eaf4; }
         .studio-toolbar button { white-space: nowrap; }
@@ -31,7 +48,7 @@
         .instr-editor p, .instrucciones-formato p { margin: .3rem 0; }
         .instr-editor u, .instrucciones-formato u { text-decoration: underline; text-underline-offset: 2px; }
         .instrucciones-formato { overflow-wrap:anywhere; line-height: 1.65; }
-        @media (max-width: 767px) { .studio-toolbar { position: static; } .studio-header { padding:18px 16px 0 !important; } .studio-content { padding:16px !important; } .studio-header nav { gap:14px !important; overflow-x:auto !important; overflow-y:visible; scrollbar-width:thin; } .studio-header nav button { white-space: nowrap; } }
+        @media (max-width: 767px) { .studio-toolbar { position: static; } .studio-header { padding:18px 16px 0 !important; } .studio-content { padding:16px !important; } .studio-header nav { gap:14px !important; flex-wrap:wrap; overflow:visible !important; } .studio-header nav button { white-space: nowrap; } .ae-instrument-menu { width:min(280px,calc(100vw - 36px)); } }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration:.01ms !important; animation-duration:.01ms !important; scroll-behavior:auto !important; } }
         @media print { .studio-toolbar, button { display:none !important; } }
     </style>
@@ -52,6 +69,8 @@
     <!-- html2canvas y jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- PDF.js para conservar diagramas, imágenes, fórmulas y estímulos oficiales PAES -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body class="bg-neutral-50 text-neutral-800 font-sans">
     <div id="root"></div>
@@ -269,6 +288,1192 @@
             );
         };
 
+        // --- INSTRUMENTO PAES (BETA): MATERIAL OFICIAL DIFUNDIDO POR DEMRE ---
+        // Las páginas PDF se reproducen gráficamente sin alterar preguntas,
+        // tablas, fórmulas ni textos. No se envían a ningún servicio de IA.
+        const PAES_PRUEBAS = {
+            lectora: { titulo:'Competencia Lectora',max:65,alternativas:4,primeraPagina:4,forma:'101',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-16-paes-invierno-competencia-lectora-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-16-paes-invierno-oficial-competencia-lectora-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-competencia-lectora.pdf'},
+            m1: {titulo:'Competencia Matemática 1 (M1)',max:65,alternativas:4,primeraPagina:3,forma:'111',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-17-paes-invierno-competencia-matematica1-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-17-paes-invierno-oficial-matematica1-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-m1.pdf'},
+            m2: {titulo:'Competencia Matemática 2 (M2)',max:55,alternativas:4,primeraPagina:3,forma:'',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-15-paes-invierno-competencia-matematica2-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-15-paes-invierno-oficial-matematica2-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-m2.pdf'},
+            historia: {titulo:'Historia y Ciencias Sociales',max:65,alternativas:4,primeraPagina:3,forma:'121',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-17-paes-invierno-historia-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-17-paes-invierno-oficial-historia-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-historia.pdf'},
+            biologia: {titulo:'Ciencias · Biología',max:80,alternativas:5,primeraPagina:3,forma:'',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-16-paes-invierno-ciencias-biologia-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-16-paes-invierno-oficial-ciencias-biologia-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-ciencias-biologia.pdf'},
+            quimica: {titulo:'Ciencias · Química',max:80,alternativas:5,primeraPagina:3,forma:'',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-16-paes-invierno-ciencias-quimica-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-16-paes-invierno-oficial-ciencias-quimica-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-ciencias-quimica.pdf'},
+            fisica: {titulo:'Ciencias · Física',max:80,alternativas:5,primeraPagina:3,forma:'',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-16-paes-invierno-ciencias-fisica-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-16-paes-invierno-oficial-ciencias-fisica-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-ciencias-fisica.pdf'},
+            tp: {titulo:'Ciencias · Técnico Profesional',max:80,alternativas:5,primeraPagina:3,forma:'',
+              fuente:'https://demre.cl/publicaciones/2027/2027-26-06-16-paes-invierno-ciencias-tp-p2027',
+              pdf:'https://demre.cl/publicaciones/pdf/2027-26-06-16-paes-invierno-oficial-ciencias-tp-p2027.pdf',
+              clavijero:'https://demre.cl/publicaciones/pdf/2027-26-07-17-clavijero-paes-invierno-ciencias-tp.pdf'}
+        };
+        const PAES_CLAVIJEROS_2027 = {"m1":{"claves":"DCBCACACBDCADACADACADADCDBCBAABADCBDBBCBCBBABDDABDDCDBDBCBCBACDCB","piloto":[7,22,42,45,51],"anulada":[]},"lectora":{"claves":"CABBDADDABCBDBAACADADDBCAAACABDDCCABCDDCACADDBCBABCABCDCABBAACDCC","piloto":[8,15,32,41,47],"anulada":[]},"historia":{"claves":"CDDCCACDBBACBCDDBADABADBBCADADDDACCBBADDDCDDCDCBBACCDCACDACCACBCD","piloto":[24,30,52,54,63],"anulada":[]},"m2":{"claves":"CDBDADDBCDDCBDBDCADCAACCCADCDDDBCCADBAB-DBCDABCDCBCADDB","piloto":[15,19,29,34,53],"anulada":[40]},"biologia":{"claves":"BCCBDCDACCAAABBDBDBDCCBBCDADAAADADCBBADCEACCCBDEBCADDCBCCDACCCACBDBBCCDCDBCBBABD","piloto":[15,58,65,75,80],"anulada":[]},"quimica":{"claves":"BADCEACCCBDEBCADDCBDCCBBCDADAAADADCBBCCBDCDACCAAABBDBDBDCDDACAADBCDDDABBDDDCDEDC","piloto":[51,60,64,65,71],"anulada":[]},"fisica":{"claves":"BDCCBBCDADAAADADCBBCCBDCDACCAAABBDBDBADCEACCCBDEBCADDCBDDAACCBBDBCCADADDBDABDBEA","piloto":[33,57,63,69,76],"anulada":[]},"tp":{"claves":"BCCBDCDACCAAABBDBDBCACADCAABBDCCBBCDADAAADADCBADCBBA-BBADCEACCCBDEBCADDCABDDDABD","piloto":[15,19,27,51,75],"anulada":[53]}};
+
+        const IndicadorImagenEnProceso = ({ mensaje }) => <div className="ae-visual-skeleton" role="status" aria-live="polite">
+            <div className="flex gap-3 items-center mb-3"><span className="ae-sparkle text-violet-600"><Sparkles size={23}/></span><div><p className="text-xs font-black text-violet-900">{mensaje}</p><p className="text-[11px] text-slate-500">La imagen aparecerá aquí al terminar.</p></div><Loader2 size={17} className="ml-auto animate-spin text-violet-600"/></div>
+            <div className="flex gap-3 items-center"><div className="ae-shimmer h-[85px] w-[42%] rounded-xl" aria-hidden="true"/><div className="flex-1 space-y-3" aria-hidden="true"><div className="ae-shimmer h-3 rounded-full w-[90%]"/><div className="ae-shimmer h-3 rounded-full w-[70%]"/><div className="ae-shimmer h-3 rounded-full w-[82%]"/></div></div>
+        </div>;
+
+        const PAESBeta = () => {
+            const [prueba, setPrueba] = useState('m1');
+            const [cantidad, setCantidad] = useState(10);
+            const [modoPreguntas, setModoPreguntas] = useState('primeras');
+            const [preguntasIA, setPreguntasIA] = useState([]);
+            const [temaIA, setTemaIA] = useState('');
+            const [dificultadIA, setDificultadIA] = useState('intermedia');
+            const [usarImagenesIA, setUsarImagenesIA] = useState(false);
+            const [cantidadImagenesIA, setCantidadImagenesIA] = useState(2);
+            const [generandoImagenPAES, setGenerandoImagenPAES] = useState('');
+            const [cargandoImagenPAES, setCargandoImagenPAES] = useState('');
+            const [enProceso, setEnProceso] = useState(false);
+            const [generando, setGenerando] = useState('');
+            const [progresoReal, setProgresoReal] = useState(null);
+            const [errorCarga, setErrorCarga] = useState('');
+            // Diagnóstico de exportación visible junto a Vista previa / Descargar.
+            const [estadoExportacionPAES, setEstadoExportacionPAES] = useState({ tipo:'', texto:'' });
+            const [listo, setListo] = useState(null);
+            const [revision, setRevision] = useState(false);
+            const [vistaPreviaPAES, setVistaPreviaPAES] = useState('');
+            useEffect(() => () => { if (vistaPreviaPAES) URL.revokeObjectURL(vistaPreviaPAES); }, [vistaPreviaPAES]);
+            const [archivoNombre, setArchivoNombre] = useState('');
+            const [fuenteComprobada, setFuenteComprobada] = useState(false);
+            const [avisoArchivo, setAvisoArchivo] = useState('');
+            const [seleccionManual, setSeleccionManual] = useState(false);
+            const [arrastrandoPDF, setArrastrandoPDF] = useState(false);
+            const [paginaInicio, setPaginaInicio] = useState(3);
+            const [paginaTermino, setPaginaTermino] = useState(5);
+            const [paginasDocumento, setPaginasDocumento] = useState(0);
+            const archivoRef = useRef(null);
+            const documentoRef = useRef(null);
+            const marcasRef = useRef({});
+            const lecturasRef = useRef([]);
+            const actual = PAES_PRUEBAS[prueba];
+            const total = Number(cantidad);
+            const correcto = Number.isInteger(total) && total >= 1 && total <= (modoPreguntas==='ia' ? 25 : actual.max);
+            const clave = PAES_CLAVIJEROS_2027[prueba];
+
+            const cambiarPrueba = valor => {
+                setEstadoExportacionPAES({tipo:'',texto:''});
+                setPrueba(valor); setCantidad(Math.min(10, PAES_PRUEBAS[valor].max));setPreguntasIA([]);
+                setGenerandoImagenPAES(''); setCargandoImagenPAES('');
+                setListo(null); setErrorCarga(''); setRevision(false); setVistaPreviaPAES('');
+                setArchivoNombre('');setFuenteComprobada(false);setAvisoArchivo('');setSeleccionManual(false);setArrastrandoPDF(false);setPaginasDocumento(0);
+                setPaginaInicio(PAES_PRUEBAS[valor].primeraPagina);setPaginaTermino(PAES_PRUEBAS[valor].primeraPagina+3);
+                documentoRef.current = null; marcasRef.current = {}; lecturasRef.current = [];
+            };
+            const cambiarCantidad = valor => {
+                setEstadoExportacionPAES({tipo:'',texto:''});
+                setCantidad(valor); setListo(null); setPreguntasIA([]); setErrorCarga(''); setVistaPreviaPAES('');
+            };
+            const cambiarModoPreguntas = valor => {
+                setEstadoExportacionPAES({tipo:'',texto:''});
+                setModoPreguntas(valor); setListo(null); setPreguntasIA([]); setErrorCarga(''); setRevision(false); setVistaPreviaPAES('');
+                setGenerandoImagenPAES(''); setCargandoImagenPAES('');
+                setAvisoArchivo(documentoRef.current ? 'El PDF sigue cargado. Haz clic en «Generar ensayo» para aplicar el nuevo modo.' : '');
+            };
+            // Muestreo sin reposición. La selección cambia al pulsar «Generar ensayo».
+            const elegirPreguntasAleatorias = (numeros, cantidadElegida) => {
+                const mezcla = [...numeros];
+                for (let i = mezcla.length - 1; i > 0; i--) {
+                    const datos = new Uint32Array(1);
+                    if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(datos);
+                    else datos[0] = Math.floor(Math.random() * 4294967296);
+                    const j = datos[0] % (i + 1);
+                    [mezcla[i], mezcla[j]] = [mezcla[j], mezcla[i]];
+                }
+                return mezcla.slice(0, cantidadElegida).sort((a,b) => a-b);
+            };
+            // Detección PAES v7.9. Los números de las indicaciones NO son preguntas.
+            // Aceptar una pregunta exige: inicio dentro del cuerpo real de la prueba,
+            // numeración correlativa y alternativas A), B), C), D) en orden.
+            // Cuando el PDF no permite confirmar las alternativas, NO se inventan cortes:
+            // se ofrece revisión manual de páginas, sin pauta automática.
+            const obtenerMarcadores = async (documento) => {
+                const filasGlobales = [];
+                const maximo = actual.max;
+                const inicioPermitido = Math.max(2, Math.floor(actual.primeraPagina || 3));
+                const normalizar = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+                const paginasIgnoradas = [];
+                for (let paginaN = 2; paginaN <= documento.numPages; paginaN++) {
+                    if (paginaN === 2 || paginaN % 5 === 0) {
+                        setGenerando(`Verificando enunciados y alternativas · página ${paginaN} de ${documento.numPages}…`);
+                    }
+                    const pagina = await documento.getPage(paginaN);
+                    const viewport = pagina.getViewport({scale:1});
+                    const contenido = await pagina.getTextContent();
+                    const filas = [];
+                    for (const item of contenido.items) {
+                        const t = String(item.str || '').trim();
+                        if (!t) continue;
+                        const [x,y] = viewport.convertToViewportPoint(item.transform[4],item.transform[5]);
+                        if (y < 34 || y > viewport.height - 30 || x < 15 || x > viewport.width - 18) continue;
+                        let fila = filas.find(f=>Math.abs(f.y-y)<3.5);
+                        if (!fila) { fila = {paginaN,y,partes:[]}; filas.push(fila); }
+                        fila.partes.push({x,t});
+                    }
+                    filas.sort((a,b)=>a.y-b.y);
+                    const textoPagina = normalizar(filas.map(f=>f.partes.map(p=>p.t).join(' ')).join(' ')).replace(/\s+/g,' ');
+                    // Indicaciones preliminares y tablas de símbolos no constituyen ítems.
+                    // También se respetan las primeras páginas según el tipo de prueba.
+                    const paginaDeIndicaciones = paginaN < inicioPermitido ||
+                        /EN ESTA PRUEBA SE CONSIDERARA LO SIGUIENTE|SIMBOLOS MATEMATICOS|DECLARACION\s*:\s*DECLARO/.test(textoPagina);
+                    if (paginaDeIndicaciones) { paginasIgnoradas.push(paginaN); continue; }
+                    for (const fila of filas) {
+                        fila.partes.sort((a,b)=>a.x-b.x);
+                        const primeras = fila.partes.filter(p=>p.x<190).slice(0,5);
+                        const textoInicio = primeras.map(p=>p.t).join(' ').replace(/\s+/g,' ').trim();
+                        const textoCompleto = fila.partes.map(p=>p.t).join(' ').replace(/\s+/g,' ').trim();
+                        const marcador = textoInicio.match(/^(\d{1,3})\s*[.)](?:\s|$)/);
+                        // En ciertos PDF las alternativas aparecen en dos columnas
+                        // (A y C en una fila, B y D en otra). Detectarlas sin
+                        // depender del orden visual ni de un solo segmento de texto.
+                        const opcionesFila = [...textoCompleto.matchAll(/(?:^|\s)([A-E])\s*[).](?=\s|$)/gi)]
+                            .map(m=>m[1].toUpperCase());
+                        const indice = filasGlobales.length;
+                        filasGlobales.push({indice,paginaN,y:fila.y,textoInicio,textoCompleto,
+                            numero:marcador ? Number(marcador[1]) : null,
+                            opcionesFila});
+                    }
+                }
+
+                const confirmados = {};
+                let desdeIndice = 0;
+                let ultimaPagina = 0;
+                for (let numero = 1; numero <= maximo; numero++) {
+                    let candidatoElegido = null;
+                    let terminaOpciones = -1;
+                    for (let i = desdeIndice; i < filasGlobales.length; i++) {
+                        const fila = filasGlobales[i];
+                        if (fila.numero !== numero) continue;
+                        if (ultimaPagina && fila.paginaN < ultimaPagina) continue;
+                        // Si la línea es una simple indicación numerada sin respuestas,
+                        // se descarta aunque coincida con el número esperado.
+                        const opcionesEncontradas = new Set();
+                        const paginaLimite = fila.paginaN + 2;
+                        let indiceFin = -1;
+                        for (let j = i+1; j < filasGlobales.length; j++) {
+                            const siguienteFila = filasGlobales[j];
+                            if (siguienteFila.paginaN > paginaLimite || j-i > 160) break;
+                            // No tomar las respuestas de la pregunta siguiente para
+                            // validar una indicación o una pregunta incompleta.
+                            if (siguienteFila.numero === numero + 1) break;
+                            (siguienteFila.opcionesFila || []).forEach(letra=>opcionesEncontradas.add(letra));
+                            if (['A','B','C','D'].every(letra=>opcionesEncontradas.has(letra))) {
+                                indiceFin=j; break;
+                            }
+                        }
+                        if (indiceFin < 0) continue;
+                        candidatoElegido = fila;
+                        terminaOpciones = indiceFin;
+                        break;
+                    }
+                    if (!candidatoElegido) break; // detener el encadenamiento para evitar falsos positivos
+                    confirmados[numero] = {
+                        numero,paginaN:candidatoElegido.paginaN,y:candidatoElegido.y,
+                        alternativasVerificadas:true
+                    };
+                    desdeIndice = terminaOpciones + 1;
+                    ultimaPagina = candidatoElegido.paginaN;
+                }
+                const cantidadVerificada = Object.keys(confirmados).length;
+                if (!cantidadVerificada) {
+                    console.warn('PAES: ninguna pregunta verificó numeración y alternativas.', {inicioPermitido,paginasIgnoradas});
+                }
+                return confirmados;
+            };
+
+            // Lectora: detecta el inicio y el rango de cada lectura para conservar
+            // los textos íntegros junto a las preguntas aleatorias que dependen de ellos.
+            const obtenerGruposLectura = async (documento) => {
+                const grupos = [];
+                for (let paginaN = 2; paginaN <= documento.numPages; paginaN++) {
+                    const pagina = await documento.getPage(paginaN);
+                    const items = (await pagina.getTextContent()).items;
+                    const texto = items.map(i => String(i.str || '')).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+                    const regex = /lectura\s*(\d+)\s*:\s*preguntas\s*(\d+)\s*a\s*(\d+)/gi;
+                    for (const match of texto.matchAll(regex)) {
+                        const n = Number(match[1]), primera = Number(match[2]), ultima = Number(match[3]);
+                        if (primera < 1 || ultima > actual.max || ultima < primera || grupos.some(g=>g.primera===primera)) continue;
+                        const itemTitulo=items.find(i=>/lectura\s*\d*/i.test(String(i.str||'')));
+                        const viewport=pagina.getViewport({scale:1});
+                        const inicioY=itemTitulo ? viewport.convertToViewportPoint(itemTitulo.transform[4],itemTitulo.transform[5])[1] : 38;
+                        grupos.push({ n, primera, ultima, paginaN, inicioY });
+                    }
+                }
+                return grupos.sort((a,b)=>a.primera-b.primera);
+            };
+
+            const asegurarLectorPDF = async () => {
+                if(window.pdfjsLib)return window.pdfjsLib;
+                for(const url of [
+                    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+                    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js'
+                ]) {
+                    try {
+                        await new Promise((resolve,reject)=>{
+                            const script=document.createElement('script');script.src=url;script.async=true;
+                            script.onload=resolve;script.onerror=()=>reject(new Error('CDN no disponible'));
+                            document.head.appendChild(script);
+                        });
+                        if(window.pdfjsLib)return window.pdfjsLib;
+                    }catch(err){console.warn('Intentando otro proveedor de PDF.js:',err);}
+                }
+                throw new Error('No se pudo cargar la biblioteca de lectura PDF. Comprueba tu conexión a internet y vuelve a intentarlo.');
+            };
+            const cargarEnPrograma = async (origen, esArchivo = false) => {
+                const lector = await asegurarLectorPDF();
+                lector.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                let argumento;
+                if(esArchivo) {
+                    if(origen.size>180*1024*1024)throw new Error('El PDF supera el máximo permitido de 180 MB.');
+                    const buffer=await origen.arrayBuffer();
+                    const cabecera=new TextDecoder('latin1').decode(new Uint8Array(buffer.slice(0,8)));
+                    if(!cabecera.includes('%PDF-'))throw new Error('El archivo no parece ser un PDF válido. Descarga el cuadernillo PDF original, no una página HTML.');
+                    argumento={data:new Uint8Array(buffer),useSystemFonts:true};
+                }else argumento={url:origen,useSystemFonts:true};
+                const tarea = lector.getDocument(argumento);
+                tarea.onProgress = ({loaded,total}) => {
+                    if(total>0 && loaded>=0){
+                        setProgresoReal(Math.min(100,Math.round(loaded/total*100)));
+                        setGenerando(esArchivo?'Abriendo el PDF guardado en tu equipo…':'Descargando el PDF original desde DEMRE…');
+                    }
+                };
+                // El servidor DEMRE puede negar el acceso entre dominios. No bloquear la interfaz
+                // indefinidamente: las importaciones locales se leen desde File API y evitan CORS.
+                if (!esArchivo) {
+                    let vencio = false;
+                    let timer;
+                    try {
+                        return await Promise.race([
+                            tarea.promise,
+                            new Promise((_, reject) => { timer = setTimeout(() => {
+                                vencio = true;
+                                reject(new Error('La descarga automática no respondió. Usa el botón «Elegir archivo PDF» para cargar el ensayo descargado.'));
+                            }, 18000); })
+                        ]);
+                    } catch (error) {
+                        if (vencio) tarea.destroy().catch(() => {});
+                        throw error;
+                    } finally { clearTimeout(timer); }
+                }
+                return await tarea.promise;
+            };
+            const validarIdentidadPDF = async documento => {
+                let portada='';
+                for(let paginaN=1;paginaN<=Math.min(2,documento.numPages);paginaN++){
+                    const pagina=await documento.getPage(paginaN);
+                    portada+=' '+(await pagina.getTextContent()).items.map(i=>i.str||'').join(' ');
+                }
+                portada=portada.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ');
+                const patron={
+                    lectora:/LECTORA/,
+                    m1:/MATEMATICA\s*1|MATEMATICA\s*I(?:\W|$)/,
+                    m2:/MATEMATICA\s*2|MATEMATICA\s*II(?:\W|$)/,
+                    historia:/HISTORIA.*CIENCIAS|HISTORIA/,
+                    biologia:/BIOLOGIA/,
+                    quimica:/QUIMICA/,
+                    fisica:/FISICA/,
+                    tp:/TECNICO\s*PROFESIONAL|TEC\s*PROFESIONAL/
+                }[prueba];
+                const coincide=!!(patron.test(portada) && /2\s*0\s*2\s*7/.test(portada));
+                return coincide;
+            };
+            const prepararPorPaginas = () => {
+                if(!documentoRef.current){setErrorCarga('Primero carga un PDF desde tu equipo.');return;}
+                const desde=Math.floor(Number(paginaInicio));const hasta=Math.floor(Number(paginaTermino));
+                if(!Number.isInteger(desde)||!Number.isInteger(hasta)||desde<1||hasta>documentoRef.current.numPages||hasta<desde){
+                    setErrorCarga(`Selecciona un rango entre la página 1 y ${documentoRef.current.numPages}.`);return;
+                }
+                const inicioPreguntas=marcasRef.current[1]?.paginaN || actual.primeraPagina;
+                if(desde < inicioPreguntas){
+                    setErrorCarga(`La página ${desde} pertenece a la portada o a indicaciones. Las preguntas comienzan, como mínimo, en la página ${inicioPreguntas}. Ajusta el rango para no incluir instrucciones.`);return;
+                }
+                setListo({prueba,cantidad:total,modo:'paginas',inicio:desde,termino:hasta,detectados:0,paginas:documentoRef.current.numPages});
+                setErrorCarga('');setRevision(true);
+                setAvisoArchivo(`Selección manual: páginas ${desde}–${hasta}. La cantidad exacta de preguntas debe comprobarse visualmente; la hoja docente no se asociará automáticamente a este recorte.`);
+            };
+            const procesarDocumento = async (documento, origenConocido = false) => {
+                documentoRef.current=documento;
+                setPaginasDocumento(documento.numPages);
+                setPaginaInicio(Math.min(actual.primeraPagina,documento.numPages));
+                setPaginaTermino(Math.min(documento.numPages,Math.max(actual.primeraPagina+3,5)));
+                setGenerando('Comprobando datos del documento…');
+                const verificado=origenConocido || await validarIdentidadPDF(documento);
+                setFuenteComprobada(verificado);
+                if(!verificado) setAvisoArchivo('El lector abrió el PDF, pero no pudo confirmar que sea la misma prueba de Invierno para Admisión 2027. Puedes preparar páginas manualmente; para evitar errores, no se habilitará la pauta docente de esta prueba.');
+                else setAvisoArchivo('PDF leído correctamente. Se está comprobando la numeración para preparar el ensayo.');
+                setProgresoReal(null);
+                setGenerando('Buscando los números de las preguntas en las páginas…');
+                const marcadores=await obtenerMarcadores(documento);
+                const detectados=Object.keys(marcadores).length;
+                marcasRef.current=marcadores;
+                if(!marcadores[1]) {
+                    setSeleccionManual(true);setListo(null);setRevision(false);setGenerando('');
+                    setErrorCarga('El PDF se abrió, pero no se pudo identificar con seguridad la primera pregunta y sus alternativas A, B, C y D. Para no confundir indicaciones con preguntas, se bloqueó la selección automática. Revisa que el PDF contenga texto seleccionable o utiliza el recorte manual desde las páginas de preguntas.');
+                    return;
+                }
+                if(!correcto){setErrorCarga(`Indica entre 1 y ${actual.max} preguntas.`);return;}
+                if (modoPreguntas === 'aleatorias') {
+                    const candidatas = Object.keys(marcadores).map(Number)
+                        .filter(n=>n>=1 && n<=actual.max && !clave.anulada.includes(n) && (marcadores[n+1] || n===actual.max));
+                    if(candidatas.length < total) {
+                        setSeleccionManual(true);setListo(null);
+                        setErrorCarga(`El PDF se abrió, pero solo se pudieron delimitar ${candidatas.length} preguntas completas de ${actual.max}. Para elegir ${total} al azar hace falta detectar más preguntas. Prueba con el PDF original publicado por DEMRE o utiliza el modo «Primeras preguntas».`);
+                        return;
+                    }
+                    let grupos = [];
+                    if (prueba === 'lectora') {
+                        setGenerando('Identificando lecturas completas para las preguntas…');
+                        grupos = await obtenerGruposLectura(documento);
+                        const rangoCompleto = grupos.length >= 7 && Array.from({length:actual.max},(_,i)=>i+1).every(n=>grupos.some(g=>n>=g.primera && n<=g.ultima));
+                        if (!rangoCompleto) {
+                            setSeleccionManual(false);setListo(null);
+                            setErrorCarga('El PDF se abrió, pero no fue posible reconocer con seguridad todas las lecturas. Para evitar preguntas sin su texto, el modo aleatorio de Competencia Lectora requiere el cuadernillo oficial con capa de texto. Puedes usar el modo consecutivo.');
+                            return;
+                        }
+                    }
+                    lecturasRef.current = grupos;
+                    const seleccion = elegirPreguntasAleatorias(candidatas,total);
+                    setSeleccionManual(false);
+                    setListo({prueba,cantidad:total,modo:'aleatorias',seleccion,detectados,paginas:documento.numPages,disponibles:candidatas.length});
+                    setRevision(true);setErrorCarga('');setGenerando('');
+                    setAvisoArchivo(`Selección aleatoria preparada: ${total} preguntas diferentes y verificadas desde la página ${marcadores[1].paginaN} del cuadernillo. Se excluyeron portada, indicaciones y preguntas anuladas. Revisa el PDF antes de aplicarlo.`);
+                    return;
+                }
+                if(!marcadores[total] || (total<actual.max && !marcadores[total+1])){
+                    setSeleccionManual(true);
+                    setListo(null);
+                    setErrorCarga(`¡El PDF se cargó correctamente! Tiene ${documento.numPages} páginas. Se detectaron ${detectados} preguntas consecutivas, pero no fue posible establecer un corte exacto para las ${total} solicitadas. Puedes seleccionar las páginas manualmente sin volver a cargar el archivo.`);
+                    setGenerando('');return;
+                }
+                setSeleccionManual(false);
+                setListo({prueba,cantidad:total,modo:'preguntas',detectados,paginas:documento.numPages});
+                setRevision(true);setGenerando('');setErrorCarga('');
+                setAvisoArchivo(verificado?'El PDF oficial está listo. Se localizaron las preguntas necesarias para el ensayo.':'Se localizaron preguntas, pero no se verificó que este PDF corresponda al clavijero oficial de 2027.');
+            };
+            const generarPreguntasOriginalesPAES = async () => {
+                const api = (()=>{try{return localStorage.getItem('gemini_api_key')||'';}catch{return '';}})();
+                if (!api.trim()) throw new Error('Configura tu API Key de Gemini desde el panel lateral para crear preguntas originales.');
+                if (total > 25) throw new Error('En el modo de IA genera entre 1 y 25 preguntas por ensayo, para facilitar su revisión.');
+                setGenerando('Gemini está redactando preguntas inéditas de práctica y su pauta…');
+                const tema=temaIA.trim() || 'Ejes y habilidades propios de la prueba seleccionada';
+                const opciones=actual.alternativas;
+                const preguntasConImagen = usarImagenesIA ? Math.max(1, Math.min(total, Number(cantidadImagenesIA) || 1)) : 0;
+                const prompt=`Diseña ${total} preguntas de práctica INÉDITAS, no copiadas ni parafraseadas de cuadernillos DEMRE, para preparación de PAES ${actual.titulo}. Tema prioritario: ${tema}. Dificultad: ${dificultadIA}. Español de Chile. Las preguntas deben ejercitar habilidades aplicadas, contexto y distractores pedagógicamente plausibles; una sola alternativa correcta. Cada pregunta debe tener EXACTAMENTE ${opciones} alternativas y solo una correcta. Para Competencia Lectora puedes incluir un microtexto ORIGINAL en el campo contexto; para Matemática usa expresiones textuales legibles e incluye todas las condiciones. ${usarImagenesIA ? `EXACTAMENTE ${preguntasConImagen} preguntas deben incluir un apoyo visual pedagógico.` : 'No incluyas imágenes.'} No uses información no verificable, referencias a figuras inexistentes ni claves oficiales. Devuelve JSON válido exclusivamente con esta estructura {"preguntas":[{"contexto":"texto breve original opcional","enunciado":"pregunta completa","alternativas":["alternativa 1","alternativa 2"],"correcta":0,"justificacion":"explicación docente breve","habilidad":"habilidad evaluada","usarImagen":false,"descripcionImagen":"","imagenAlt":"","svgImagen":""}]}. correcta es índice entero desde cero. Si una pregunta usa imagen, debe incluir usarImagen=true, descripcionImagen breve, imagenAlt y svgImagen con un SVG simple 640x360, sin scripts ni recursos externos. Completa las ${total} preguntas; no uses claves A/B/C en alternativas.`;
+                const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(api.trim())}`;
+                const control=new AbortController();
+                const limite=setTimeout(()=>control.abort(),90000);
+                let respuesta;
+                try {
+                    respuesta=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},signal:control.signal,body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.7,maxOutputTokens:16000}})});
+                } finally {clearTimeout(limite);}
+                if(!respuesta.ok){
+                    const dato=await respuesta.json().catch(()=>({}));
+                    throw new Error(dato?.error?.message || `Gemini respondió con error HTTP ${respuesta.status}.`);
+                }
+                const dato=await respuesta.json();
+                const salida=(dato?.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
+                let resultado;
+                try{resultado=JSON.parse(salida);}catch{throw new Error('La respuesta de Gemini no contenía un JSON válido. Vuelve a intentarlo.');}
+                if(!Array.isArray(resultado.preguntas) || resultado.preguntas.length!==total) throw new Error(`Gemini no entregó las ${total} preguntas solicitadas. Vuelve a generar.`);
+                const procesadas=resultado.preguntas.map((q,i)=>{
+                    const alternativas=Array.isArray(q.alternativas)?q.alternativas.map(t=>String(t||'').trim()):[];
+                    const correcta=Number(q.correcta);
+                    if(!String(q.enunciado||'').trim() || alternativas.length!==opciones || alternativas.some(a=>!a) || new Set(alternativas.map(a=>a.toLowerCase())).size!==opciones || !Number.isInteger(correcta) || correcta<0 || correcta>=opciones) throw new Error(`La pregunta IA ${i+1} no tiene una estructura válida. No se generó el ensayo.`);
+                    const imagen = q.usarImagen ? procesarImagenPAESIA(q, String(q.enunciado||'').trim()) : { imagenSrc:'', imagenAlt:'', descripcionImagen:'', origenImagen:'' };
+                    return {id:`paes-ia-${Date.now()}-${i}`,contexto:String(q.contexto||'').trim(),enunciado:String(q.enunciado).trim(),alternativas,correcta,justificacion:String(q.justificacion||''),habilidad:String(q.habilidad||''), ...imagen};
+                });
+                setPreguntasIA(procesadas);
+                setListo({prueba,cantidad:total,modo:'ia'});
+                setRevision(false);
+                setErrorCarga('');
+                setAvisoArchivo('Se generó un ensayo con preguntas originales de práctica. Revisa enunciados, alternativas y claves antes de aplicarlo. No son preguntas oficiales del DEMRE.');
+            };
+            const actualizarPreguntaPAESIA = (id,cambios) => setPreguntasIA(prev=>prev.map(p=>p.id===id?{...p,...cambios}:p));
+            const normalizarSVGPAESIA = (contenido) => {
+                if (typeof contenido !== 'string') return '';
+                const match = contenido.match(/<svg[\s\S]*?<\/svg>/i);
+                if (!match) return '';
+                return match[0]
+                    .replace(/<\/?(?:script|foreignObject)[^>]*>/gi, '')
+                    .replace(/\son\w+="[^"]*"/gi, '')
+                    .replace(/\son\w+='[^']*'/gi, '');
+            };
+            const svgADataURLPAESIA = svg => svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : '';
+            const crearSVGTextoPAESIA = (titulo, descripcion) => {
+                const limpiar = valor => String(valor || '').replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
+                const seguroTitulo = limpiar(titulo || 'Recurso visual de apoyo');
+                const lineas = (String(descripcion || '').replace(/\s+/g,' ').trim().match(/.{1,56}(?:\s|$)/g) || ['Observa el recurso y responde la pregunta.']).slice(0,5);
+                return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" rx="24" fill="#f8fafc"/><rect x="18" y="18" width="604" height="324" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/><rect x="42" y="48" width="168" height="104" rx="18" fill="#eef2ff"/><circle cx="96" cy="98" r="28" fill="#c7d2fe"/><path d="M146 123l18-20 25 28" fill="none" stroke="#6366f1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><rect x="240" y="52" width="330" height="22" rx="11" fill="#0f172a" opacity="0.92"/><text x="256" y="68" fill="#ffffff" font-family="Arial, sans-serif" font-size="16" font-weight="700">${seguroTitulo}</text>${lineas.map((linea,idx)=>`<text x="240" y="${102 + idx*34}" fill="#334155" font-family="Arial, sans-serif" font-size="19">${limpiar(linea.trim())}</text>`).join('')}<text x="240" y="304" fill="#6366f1" font-family="Arial, sans-serif" font-size="14" font-weight="700">Apoyo visual generado con IA</text></svg>`;
+            };
+            const procesarImagenPAESIA = (registro, tituloFallback = 'Recurso visual') => {
+                const svg = normalizarSVGPAESIA(registro?.svgImagen || registro?.imagenSvg || '');
+                const descripcion = typeof registro?.descripcionImagen === 'string' ? registro.descripcionImagen.trim() : '';
+                const alt = typeof registro?.imagenAlt === 'string' && registro.imagenAlt.trim() ? registro.imagenAlt.trim() : (descripcion || tituloFallback);
+                const finalSvg = svg || (descripcion ? crearSVGTextoPAESIA(tituloFallback, descripcion) : '');
+                return { imagenSrc: svgADataURLPAESIA(finalSvg), imagenAlt: alt, descripcionImagen: descripcion, origenImagen: finalSvg ? 'ia' : '' };
+            };
+            const leerImagenPAESIADataURL = archivo => new Promise((resolve,reject)=>{
+                const reader = new FileReader();
+                reader.onload = ev => resolve(ev.target?.result || '');
+                reader.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+                reader.readAsDataURL(archivo);
+            });
+            const manejarImagenManualPAESIA = async (id, e) => {
+                const archivo = e.target.files?.[0];
+                if (e.target.value !== undefined) e.target.value='';
+                if (!archivo) return;
+                if (!['image/png','image/jpeg','image/jpg','image/webp'].includes(archivo.type)) { setErrorCarga('La imagen debe estar en formato PNG, JPG o WEBP.'); return; }
+                if (archivo.size > 6 * 1024 * 1024) { setErrorCarga('La imagen debe pesar menos de 6 MB.'); return; }
+                setCargandoImagenPAES(id);
+                try {
+                    const src = await leerImagenPAESIADataURL(archivo);
+                    actualizarPreguntaPAESIA(id,{ imagenSrc: src, origenImagen:'manual' });
+                } catch (err) {
+                    setErrorCarga(err.message || 'No se pudo cargar la imagen.');
+                } finally {
+                    setCargandoImagenPAES('');
+                }
+            };
+            const quitarImagenPAESIA = id => actualizarPreguntaPAESIA(id,{ imagenSrc:'', imagenAlt:'', descripcionImagen:'', origenImagen:'' });
+            const generarImagenPreguntaPAESIA = async (id) => {
+                const api = (()=>{try{return localStorage.getItem('gemini_api_key')||'';}catch{return '';}})();
+                if (!api.trim()) throw new Error('Configura tu API Key de Gemini desde el panel lateral para crear imágenes de apoyo.');
+                const pregunta = preguntasIA.find(p=>p.id===id);
+                if (!pregunta || !pregunta.enunciado?.trim()) throw new Error('Escribe primero el enunciado de la pregunta.');
+                setGenerandoImagenPAES(id);
+                try {
+                    const prompt = `Crea únicamente un objeto JSON válido en español con este esquema: {"descripcionImagen":"...","imagenAlt":"...","svgImagen":"<svg ...>...</svg>"}. Esta imagen será un apoyo visual pedagógico para una pregunta de práctica tipo PAES de ${actual.titulo}. Tema o habilidad: ${temaIA.trim() || 'según la prueba seleccionada'}. Contexto: ${pregunta.contexto || 'sin contexto adicional'}. Pregunta: ${pregunta.enunciado}. Alternativas: ${(pregunta.alternativas || []).join(' | ')}. Genera un SVG SIMPLE, legible, didáctico, de 640x360, sin scripts ni recursos externos. Puede ser un gráfico, esquema, diagrama, tabla breve, recta numérica, figura geométrica o apoyo visual equivalente si ayuda a responder la pregunta. No incluyas marcas oficiales ni logos.`;
+                    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(api.trim())}`;
+                    const control=new AbortController();
+                    const limite=setTimeout(()=>control.abort(),90000);
+                    let respuesta;
+                    try {
+                        respuesta=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},signal:control.signal,body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.5,maxOutputTokens:12000}})});
+                    } finally { clearTimeout(limite); }
+                    if(!respuesta.ok){ const dato=await respuesta.json().catch(()=>({})); throw new Error(dato?.error?.message || `Gemini respondió con error HTTP ${respuesta.status}.`); }
+                    const dato=await respuesta.json();
+                    const salida=(dato?.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
+                    const resultado=JSON.parse(salida);
+                    const imagen = procesarImagenPAESIA(resultado, pregunta.enunciado.trim());
+                    if(!imagen.imagenSrc) throw new Error('Gemini no entregó una imagen utilizable.');
+                    actualizarPreguntaPAESIA(id, imagen);
+                } finally {
+                    setGenerandoImagenPAES('');
+                }
+            };
+            const validarPreguntasPAESIA = () => {
+                if(!preguntasIA.length || preguntasIA.length!==(listo?.cantidad || total)) throw new Error('Primero genera un ensayo original con IA.');
+                for(const [i,q] of preguntasIA.entries()) {
+                    if(!q.enunciado.trim() || q.alternativas.length!==actual.alternativas || q.alternativas.some(a=>!a.trim()) || !Number.isInteger(q.correcta) || q.correcta<0 || q.correcta>=q.alternativas.length) throw new Error(`Revisa el enunciado y las alternativas de la pregunta ${i+1}.`);
+                }
+            };
+            const generarEnsayo = async () => {
+                if(!correcto){setErrorCarga(`Elige entre 1 y ${modoPreguntas==='ia' ? 25 : actual.max} preguntas.`);return;}
+                setEnProceso(true);setProgresoReal(null);setErrorCarga('');setListo(null);setSeleccionManual(false);
+                try{
+                    if(modoPreguntas==='ia') {
+                        await generarPreguntasOriginalesPAES();
+                    }else if(documentoRef.current){
+                        setGenerando('Preparando ensayo desde el PDF que ya cargaste…');
+                        await procesarDocumento(documentoRef.current);
+                    }else{
+                        setGenerando('Intentando abrir el PDF oficial desde DEMRE…');
+                        const documento=await cargarEnPrograma(actual.pdf);
+                        setArchivoNombre('PDF descargado desde DEMRE');
+                        await procesarDocumento(documento,true);
+                    }
+                }catch(err){
+                    setErrorCarga('No se pudo obtener automáticamente el PDF. Descárgalo desde el enlace oficial y luego usa «Cargar PDF desde mi equipo» (disponible siempre). Detalle: '+(err?.message||'Error desconocido'));
+                    setGenerando('');
+                }finally{setEnProceso(false);setProgresoReal(null);}
+            };
+            const cargarPDFLocal = async e => {
+                const archivo=e.target.files?.[0];
+                if(e.target.value!==undefined)e.target.value='';
+                if(!archivo)return;
+                if(!/\.pdf$/i.test(archivo.name) && archivo.type!=='application/pdf'){
+                    setErrorCarga('Selecciona un archivo PDF (no una imagen ni una página web).');return;
+                }
+                setEnProceso(true);setProgresoReal(null);setErrorCarga('');setListo(null);setSeleccionManual(false);
+                try{
+                    setGenerando('Abriendo el PDF seleccionado desde tu equipo…');
+                    setArchivoNombre(archivo.name);
+                    const documento=await cargarEnPrograma(archivo,true);
+                    await procesarDocumento(documento);
+                }catch(err){
+                    setErrorCarga(`No se pudo abrir «${archivo.name}»: ${err?.message||'Error desconocido'}. Si contiene contraseña, utiliza una versión sin protección.`);
+                    setGenerando('');
+                }finally{setEnProceso(false);setProgresoReal(null);}
+            };
+            const obtenerJsPDF = () => {
+                if(!window.jspdf?.jsPDF) throw new Error('No se encontró la librería jsPDF.');
+                return new window.jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait',compress:true});
+            };
+            const prepararPortada = (pdf, etiqueta) => {
+                pdf.setFillColor(30,41,59);pdf.rect(0,0,210,13,'F');
+                pdf.setFillColor(99,102,241);pdf.rect(0,13,210,2,'F');
+                pdf.setTextColor(51,65,85);pdf.setFont('helvetica','normal');pdf.setFontSize(10);
+                pdf.text('ENSAYO PAES  /  MATERIAL DE PRÁCTICA',20,30);
+                pdf.setTextColor(15,23,42);pdf.setFont('helvetica','bold');pdf.setFontSize(24);
+                const lineas=pdf.splitTextToSize(actual.titulo.toUpperCase(),170);
+                pdf.text(lineas,20,53);
+                const base=53+lineas.length*11+5;
+                pdf.setFontSize(11);pdf.setTextColor(71,85,105);
+                pdf.text(listo.modo==='ia'?'Práctica de preparación · preguntas inéditas generadas con IA':`Proceso de Admisión 2027  ·  PAES de Invierno 2026`,20,base);
+                pdf.text(listo.modo==='paginas' ? `Páginas ${listo.inicio}–${listo.termino} (cantidad por revisar) · ${etiqueta}` : `${listo.cantidad} preguntas ${listo.modo==='aleatorias'?'seleccionadas al azar':'originales'} · ${etiqueta}`,20,base+8);
+                pdf.setDrawColor(203,213,225);pdf.line(20,base+18,190,base+18);
+                pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.setTextColor(30,41,59);
+                pdf.text('Nombre: ______________________________________________________',20,base+33);
+                pdf.text('Curso: ________________________    Fecha: _______________________',20,base+45);
+                pdf.setFillColor(248,250,252);pdf.roundedRect(20,base+60,170,52,3,3,'F');
+                pdf.setFont('helvetica','bold');pdf.setFontSize(10);pdf.text('INSTRUCCIONES',27,base+70);
+                pdf.setFont('helvetica','normal');pdf.setFontSize(9.5);
+                const instrucciones=listo.modo==='ia'
+                    ? 'Responde cada pregunta marcando una alternativa en la hoja correspondiente. Los enunciados son originales de práctica generados por IA y revisables por el docente; no proceden de las pruebas oficiales DEMRE.'
+                    : listo.modo==='aleatorias'
+                    ? 'Responde cada pregunta según el número de ensayo indicado arriba del recorte; el número impreso dentro corresponde a la prueba DEMRE original. Lee todos los textos y figuras de apoyo. Utiliza la hoja de respuestas correspondiente. Esta selección es una práctica independiente, no una aplicación oficial.'
+                    : 'Lee íntegramente los estímulos y cada pregunta. Marca solo una alternativa por pregunta en tu hoja de respuestas. No se descuentan puntos por respuestas incorrectas. Esta es una selección de práctica, no una aplicación oficial del DEMRE.';
+                pdf.text(pdf.splitTextToSize(instrucciones,154),27,base+79);
+                pdf.setTextColor(100,116,139);pdf.setFontSize(9);
+                const cita=listo.modo==='ia'?'Material original de preparación elaborado con asistencia de IA. No incluye preguntas oficiales DEMRE.':`Fuente: DEMRE (2026). PAES de Invierno ${actual.titulo} - Proceso de Admisión 2027.`;
+                pdf.text(pdf.splitTextToSize(cita,170),20,267);
+                pdf.setFont('helvetica','italic');pdf.setFontSize(8.6);
+                pdf.text('Material de uso pedagógico no comercial. Documento independiente; no oficial ni avalado por DEMRE.',20,285);
+            };
+            // Motor de composición PAES v7.8.
+            // El corte superior/inferior se calcula sobre espacios blancos reales de la página,
+            // compartiendo la misma frontera entre dos preguntas consecutivas. No se corta
+            // a una distancia fija del número (que en PAES suele ser la línea base del texto).
+            // Ante incertidumbre, se toma una franja más amplia: es preferible conservar
+            // un espacio extra a cercenar una fórmula, gráfico o alternativa.
+            const crearContextoRecortesPAES = (documento) => {
+                const paginas = new Map();
+                const cortes = new Map();
+                const escala = 2.25; // ~160 ppp sobre PDF de 72 ppp
+                // Limpiar exclusivamente cabeceras/pies identificados por texto en el PDF.
+                // No eliminar por posición fija: una fórmula o gráfico puede estar cerca del borde.
+                const limpiarCabecerasPDF = async (pagina, viewport, ctx) => {
+                    const contenido = await pagina.getTextContent();
+                    const lineas = [];
+                    for (const item of contenido.items) {
+                        const cadena = String(item.str || '').trim();
+                        if (!cadena) continue;
+                        const [x,y] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
+                        if (x < 0 || y < 0 || y > viewport.height) continue;
+                        let linea = lineas.find(l => Math.abs(l.y-y) <= 3.8*escala);
+                        if (!linea) { linea = {y,items:[]};lineas.push(linea); }
+                        const ancho = Math.abs((item.width || cadena.length*5)*escala);
+                        linea.items.push({x,y,ancho,cadena});
+                    }
+                    const normal = valor => String(valor).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[–—−]/g,'-').replace(/\s+/g,' ').trim();
+                    for (const linea of lineas) {
+                        const elementos = linea.items.sort((a,b)=>a.x-b.x);
+                        const texto = normal(elementos.map(e=>e.cadena).join(' '));
+                        const enZonaCabecera = linea.y < viewport.height * .22;
+                        const enZonaPie = linea.y > viewport.height * .76;
+                        const esForma = enZonaCabecera && /^FORMA\s*\d{2,4}\s*[-]?\s*20\d{2}$/.test(texto);
+                        const esPagina = enZonaPie && /^[- ]*\d{1,3}[- ]*$/.test(texto) &&
+                            Math.abs((elementos[0].x + elementos[elementos.length-1].x + elementos[elementos.length-1].ancho)/2 - viewport.width/2) < viewport.width*.22;
+                        if (!esForma && !esPagina) continue;
+                        // Ocultar solo la franja del encabezado/pie, sin alterar el cuerpo.
+                        const minX=Math.min(...elementos.map(e=>e.x));
+                        const maxX=Math.max(...elementos.map(e=>e.x+e.ancho));
+                        const x=Math.max(0,minX-13*escala), xFin=Math.min(viewport.width,maxX+13*escala);
+                        const alto=14*escala;
+                        ctx.fillStyle='#ffffff';
+                        ctx.fillRect(x,Math.max(0,linea.y-10.5*escala),xFin-x,alto);
+                    }
+                };
+                // Eliminar márgenes blancos sobrantes en cada fragmento. Mantener
+                // seguridad de 12 px y rechazar recortes sin contenido real.
+                const ajustarFragmentoAlContenido = (canvas) => {
+                    const ctx = canvas.getContext('2d',{willReadFrequently:true});
+                    const w=canvas.width,h=canvas.height;
+                    if(w < 15 || h < 15)return null;
+                    const x0=Math.round(w*.065),x1=Math.round(w*.94);
+                    const bloque=ctx.getImageData(0,0,w,h).data;
+                    const filas=[];
+                    for(let yy=0;yy<h;yy+=2){
+                        let puntos=0;
+                        for(let xx=x0;xx<x1;xx+=3){
+                            const idx=(yy*w+xx)*4;
+                            if(bloque[idx]<215 && bloque[idx+1]<215 && bloque[idx+2]<215){
+                                if(++puntos>=3)break;
+                            }
+                        }
+                        if(puntos>=3)filas.push(yy);
+                    }
+                    if(!filas.length) return null;
+                    const y0=Math.max(0,filas[0]-13),y1=Math.min(h,filas[filas.length-1]+15);
+                    if(y1-y0<8)return null;
+                    if(y0===0 && y1===h)return canvas;
+                    const out=document.createElement('canvas');out.width=w;out.height=y1-y0;
+                    const outCtx=out.getContext('2d',{alpha:false});
+                    outCtx.fillStyle='#fff';outCtx.fillRect(0,0,out.width,out.height);
+                    outCtx.drawImage(canvas,0,y0,w,out.height,0,0,w,out.height);
+                    return out;
+                };
+                const obtenerPagina = async numero => {
+                    if (paginas.has(numero)) return paginas.get(numero);
+                    const pagina = await documento.getPage(numero);
+                    const viewport = pagina.getViewport({scale:escala});
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.ceil(viewport.width);
+                    canvas.height = Math.ceil(viewport.height);
+                    const ctx = canvas.getContext('2d',{alpha:false,willReadFrequently:true});
+                    ctx.fillStyle = '#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+                    await pagina.render({canvasContext:ctx,viewport}).promise;
+                    await limpiarCabecerasPDF(pagina,viewport,ctx);
+                    const data = {canvas,ctx,escala,alto:viewport.height/escala,ancho:viewport.width/escala};
+                    paginas.set(numero,data);
+                    return data;
+                };
+                const encontrarCorte = async (numero, marcaY) => {
+                    const claveCorte = `${numero}:${Math.round(marcaY*10)}`;
+                    if (cortes.has(claveCorte)) return cortes.get(claveCorte);
+                    const {canvas,ctx,escala} = await obtenerPagina(numero);
+                    // Buscar una línea horizontal verdaderamente limpia ANTES del título.
+                    // El número detectado por PDF.js es la línea base, no el borde superior.
+                    const inicio = Math.max(12,Math.floor((marcaY-62)*escala));
+                    const fin = Math.min(canvas.height-4,Math.floor((marcaY-15)*escala));
+                    let corte = Math.max(12,marcaY-24);
+                    if (fin > inicio+4) {
+                        const x0=Math.floor(canvas.width*.075), x1=Math.floor(canvas.width*.925);
+                        const anchura=x1-x0;
+                        const pixeles=ctx.getImageData(x0,inicio,anchura,fin-inicio+1).data;
+                        const pasoX=3;
+                        const blanco=[];
+                        for(let yy=0;yy<=fin-inicio;yy++) {
+                            let oscuros=0;
+                            for(let xx=0;xx<anchura;xx+=pasoX) {
+                                const ix=(yy*anchura+xx)*4;
+                                if(pixeles[ix]<190 && pixeles[ix+1]<190 && pixeles[ix+2]<190) {
+                                    oscuros++;
+                                    if(oscuros>2)break;
+                                }
+                            }
+                            blanco.push(oscuros<=2);
+                        }
+                        const minimo=Math.max(4,Math.round(3.2*escala));
+                        let run=-1, mejor=-1;
+                        for(let i=0;i<=blanco.length;i++) {
+                            if(i<blanco.length && blanco[i]) {if(run<0)run=i;}
+                            else if(run>=0) {
+                                if(i-run>=minimo) {
+                                    // Preferir el espacio seguro más próximo al título,
+                                    // pero siempre como mínimo 15 pt sobre su línea base.
+                                    mejor = inicio + Math.floor((run+i-1)/2);
+                                }
+                                run=-1;
+                            }
+                        }
+                        if(mejor>=0) corte=mejor/escala;
+                    }
+                    corte=Math.max(12,Math.min(marcaY-14,corte));
+                    cortes.set(claveCorte,corte);
+                    return corte;
+                };
+                const recortar = async (numero, desdeY, hastaY) => {
+                    const dato = await obtenerPagina(numero);
+                    const desde=Math.max(12,Math.min(dato.alto-22,Number.isFinite(desdeY)?desdeY:22));
+                    const hasta=Math.min(dato.alto-14,Number.isFinite(hastaY)?hastaY:dato.alto-14);
+                    if(hasta<=desde+5) return null;
+                    const sx=0, sy=Math.max(0,Math.floor(desde*escala));
+                    const anchoPx=dato.canvas.width, altoPx=Math.min(dato.canvas.height-sy,Math.ceil((hasta-desde)*escala));
+                    if(altoPx<9)return null;
+                    const fragmento=document.createElement('canvas');
+                    fragmento.width=anchoPx;fragmento.height=altoPx;
+                    const ctx=fragmento.getContext('2d',{alpha:false});
+                    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,anchoPx,altoPx);
+                    ctx.drawImage(dato.canvas,sx,sy,anchoPx,altoPx,0,0,anchoPx,altoPx);
+                    return ajustarFragmentoAlContenido(fragmento);
+                };
+                const limpiar = () => {
+                    paginas.forEach(p=>{p.canvas.width=0;p.canvas.height=0;});
+                    paginas.clear();cortes.clear();
+                };
+                return {obtenerPagina,encontrarCorte,recortar,limpiar};
+            };
+
+            const crearDiagramacionPAES = (pdf) => {
+                const margenX=13, anchoUtil=184, altoInferior=281;
+                let y=altoInferior;
+                let paginaActual=0;
+                const nuevaPagina=()=>{pdf.addPage();paginaActual++;y=15;};
+                const agregar = (imagen, etiqueta, detalle = '') => {
+                    if(!imagen)return;
+                    // Se redimensiona el fragmento COMPLETO conservando su relación de aspecto.
+                    // Nunca se usa un rectángulo PDF que corte una imagen ya renderizada.
+                    const w0=imagen.width,h0=imagen.height;
+                    if(!w0||!h0)throw new Error('Se detectó un fragmento de pregunta vacío.');
+                    const ratio=Math.min(anchoUtil/w0,241/h0);
+                    const w=w0*ratio, h=h0*ratio;
+                    const espacio=8+h+5;
+                    if(paginaActual===0 || y+espacio>altoInferior) nuevaPagina();
+                    pdf.setFillColor(248,250,252);
+                    pdf.setDrawColor(226,232,240);
+                    pdf.roundedRect(margenX,y-2,anchoUtil,7.5,1.7,1.7,'FD');
+                    pdf.setFont('helvetica','bold');pdf.setFontSize(9.1);pdf.setTextColor(30,41,59);
+                    pdf.text(etiqueta,margenX+3,y+3);
+                    if(detalle){pdf.setFont('helvetica','normal');pdf.setFontSize(7.7);pdf.setTextColor(100,116,139);pdf.text(detalle,margenX+anchoUtil-3,y+3,{align:'right'});}
+                    y+=9;
+                    pdf.addImage(imagen.toDataURL('image/jpeg',0.94),'JPEG',margenX+(anchoUtil-w)/2,y,w,h,undefined,'FAST');
+                    y+=h+6;
+                };
+                return {agregar};
+            };
+
+            const descargarEnsayoAleatorio = async (pdf, documento) => {
+                const marcas=marcasRef.current;
+                const seleccion=listo?.seleccion||[];
+                if(seleccion.length!==listo?.cantidad) throw new Error('La selección aleatoria no está preparada. Vuelve a generar el ensayo.');
+                const recortes=crearContextoRecortesPAES(documento);
+                const diagramacion=crearDiagramacionPAES(pdf);
+                let grupoAnterior=null;
+                try {
+                    for(const [index,n] of seleccion.entries()) {
+                        const inicio=marcas[n], fin=marcas[n+1];
+                        if(!inicio || (!fin && n!==actual.max)) throw new Error(`No se identificaron los límites de la pregunta original ${n}.`);
+                        if(fin && (fin.paginaN<inicio.paginaN || (fin.paginaN===inicio.paginaN && fin.y<=inicio.y))) throw new Error(`Los límites de la pregunta ${n} están invertidos. No se generó un recorte incompleto.`);
+                        if(prueba==='lectora') {
+                            const grupo=lecturasRef.current.find(g=>n>=g.primera && n<=g.ultima);
+                            if(!grupo)throw new Error(`No se encontró la lectura vinculada a la pregunta original ${n}.`);
+                            if(grupoAnterior!==grupo.n) {
+                                const marcaPrimera=marcas[grupo.primera];
+                                if(!marcaPrimera || grupo.paginaN>marcaPrimera.paginaN)throw new Error(`No se pudo identificar el texto completo de la lectura ${grupo.n}.`);
+                                for(let pag=grupo.paginaN;pag<=marcaPrimera.paginaN;pag++) {
+                                    const arriba=pag===grupo.paginaN ? Math.max(12,grupo.inicioY-22) : 20;
+                                    const abajo=pag===marcaPrimera.paginaN ? await recortes.encontrarCorte(pag,marcaPrimera.y) : null;
+                                    const fragmento=await recortes.recortar(pag,arriba,abajo);
+                                    if(fragmento) diagramacion.agregar(fragmento,`LECTURA ${grupo.n} · texto original`,pag>grupo.paginaN?'Continuación':'DEMRE · Admisión 2027');
+                                }
+                                grupoAnterior=grupo.n;
+                            }
+                        }
+                        const paginaUltima=fin?fin.paginaN:Math.min(documento.numPages,inicio.paginaN+1);
+                        let fragmentos=0;
+                        for(let paginaN=inicio.paginaN;paginaN<=paginaUltima;paginaN++) {
+                            const arriba=paginaN===inicio.paginaN ? await recortes.encontrarCorte(paginaN,inicio.y) : 20;
+                            const abajo=fin && paginaN===fin.paginaN ? await recortes.encontrarCorte(paginaN,fin.y) : null;
+                            const fragmento=await recortes.recortar(paginaN,arriba,abajo);
+                            if(!fragmento)continue;
+                            diagramacion.agregar(fragmento,`PREGUNTA ${index+1} DE ${seleccion.length}`,`Original DEMRE Nº ${n}${paginaN>inicio.paginaN?' · continuación':''}`);
+                            fragmentos++;
+                        }
+                        if(!fragmentos)throw new Error(`La pregunta original ${n} no produjo un fragmento válido. Para evitar cortes, prueba otra selección.`);
+                        setGenerando(`Componiendo pregunta ${index+1} de ${seleccion.length} · original Nº ${n}…`);
+                        await new Promise(resolve=>setTimeout(resolve,0));
+                    }
+                } finally {
+                    recortes.limpiar();
+                }
+            };
+
+            const agregarPreguntasOriginalesPDF = async (pdf) => {
+                validarPreguntasPAESIA();
+                const m=19,w=172,lim=277;
+                let y=18;
+                pdf.addPage();
+                const reservar = altura => {if(y+altura>lim){pdf.addPage();y=18;}};
+                const escribir=(texto,tam=10,negrita=false,indent=0,separacion=2)=>{
+                    const limpio=String(texto||'').replace(/\s+/g,' ').trim();
+                    if(!limpio) return;
+                    pdf.setFont('helvetica',negrita?'bold':'normal');pdf.setFontSize(tam);
+                    const lineas=pdf.splitTextToSize(limpio,w-indent);
+                    const salto=Math.max(4.6,tam*0.3528*1.44);
+                    for(const linea of lineas){reservar(salto);pdf.text(linea,m+indent,y);y+=salto;}
+                    y+=separacion;
+                };
+                // jsPDF 2.5 no admite SVG directo en addImage. Convertir TODAS las
+                // imágenes de preguntas (SVG IA, JPG, WEBP, PNG) a PNG mediante Canvas.
+                // Un único formato rasterizado evita que ambas salidas fallen en silencio.
+                const imagenPreparadaPDF = src => new Promise((resolve,reject) => {
+                    if(!src || typeof src !== 'string' || !src.startsWith('data:image/')) {
+                        reject(new Error('Formato de imagen no reconocido.')); return;
+                    }
+                    const img = new Image();
+                    let resuelto = false;
+                    const temporizador = setTimeout(() => {
+                        if(resuelto) return;
+                        resuelto = true;
+                        img.onload = null; img.onerror = null;
+                        reject(new Error('La imagen tardó demasiado en procesarse.'));
+                    }, 12000);
+                    img.onload = () => {
+                        if(resuelto) return;
+                        resuelto = true; clearTimeout(temporizador);
+                        try {
+                            const iw = img.naturalWidth || img.width || 640;
+                            const ih = img.naturalHeight || img.height || 360;
+                            if(iw <= 0 || ih <= 0) throw new Error('La imagen no tiene dimensiones válidas.');
+                            const escala = Math.min(1, 1600/iw, 1200/ih);
+                            const canvas = document.createElement('canvas');
+                            canvas.width = Math.max(1,Math.round(iw*escala));
+                            canvas.height = Math.max(1,Math.round(ih*escala));
+                            const ctx = canvas.getContext('2d');
+                            if(!ctx) throw new Error('No se pudo crear el lienzo de la imagen.');
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(0,0,canvas.width,canvas.height);
+                            ctx.drawImage(img,0,0,canvas.width,canvas.height);
+                            resolve({ png:canvas.toDataURL('image/png'), w:iw, h:ih });
+                            canvas.width = 0; canvas.height = 0;
+                        } catch(error) { reject(error); }
+                    };
+                    img.onerror = () => {
+                        if(resuelto) return;
+                        resuelto = true; clearTimeout(temporizador);
+                        reject(new Error('El navegador no pudo leer la imagen.'));
+                    };
+                    img.src = src;
+                });
+                const advertenciasImagenes = [];
+                const dibujarImagen = async (pregunta, numeroPregunta) => {
+                    if(!pregunta?.imagenSrc) return;
+                    try {
+                        const imagen = await imagenPreparadaPDF(pregunta.imagenSrc);
+                        const maxW = w - 12, maxH = 56;
+                        const escala = Math.min(maxW / imagen.w, maxH / imagen.h);
+                        const dw = imagen.w * escala, dh = imagen.h * escala;
+                        reservar(dh + (pregunta.descripcionImagen ? 15 : 10));
+                        pdf.setDrawColor(219,228,240); pdf.setLineWidth(0.25);
+                        if (typeof pdf.roundedRect === 'function') pdf.roundedRect(m+3, y, dw+6, dh+6, 2, 2, 'S');
+                        else pdf.rect(m+3, y, dw+6, dh+6);
+                        pdf.addImage(imagen.png, 'PNG', m+6, y+3, dw, dh, undefined, 'FAST');
+                        y += dh + 8;
+                        if(pregunta.descripcionImagen) escribir(pregunta.descripcionImagen,8.4,false,4,2.5);
+                    } catch(error) {
+                        advertenciasImagenes.push(numeroPregunta);
+                        console.warn(`Imagen no incorporada en pregunta PAES IA ${numeroPregunta}:`, error);
+                        reservar(19);
+                        pdf.setDrawColor(244, 63, 94);
+                        pdf.setFillColor(255, 241, 242);
+                        if(typeof pdf.roundedRect==='function') pdf.roundedRect(m+3,y-2,w-6,15,2,2,'FD');
+                        else pdf.rect(m+3,y-2,w-6,15,'FD');
+                        pdf.setTextColor(159, 18, 57);
+                        pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);
+                        pdf.text('IMAGEN NO DISPONIBLE. Revisar antes de aplicar.',m+7,y+4);
+                        y+=18;
+                        pdf.setTextColor(30,41,59);
+                    }
+                };
+                pdf.setTextColor(30,41,59);
+                escribir('PREGUNTAS ORIGINALES DE PRÁCTICA · GENERADAS CON IA',11,true,0,7);
+                for (const [i,q] of preguntasIA.entries()) {
+                    pdf.setFont('helvetica','bold');pdf.setFontSize(10);
+                    const partes=[...(q.contexto?pdf.splitTextToSize(q.contexto,w-5):[]),...pdf.splitTextToSize(q.enunciado,w)];
+                    const altoEstimado=(partes.length+q.alternativas.reduce((a,v)=>a+pdf.splitTextToSize(v,w-12).length,0))*5.1+(q.imagenSrc?62:0)+19;
+                    reservar(Math.min(altoEstimado,210));
+                    pdf.setDrawColor(226,232,240);pdf.setLineWidth(.3);pdf.line(m,y-3,m+w,y-3);
+                    if(q.contexto) escribir(q.contexto,9.4,false,4,4);
+                    if(q.imagenSrc) await dibujarImagen(q, i+1);
+                    escribir(`${i+1}. ${q.enunciado}`,10.2,true,0,3);
+                    q.alternativas.forEach((alternativa,j)=>escribir(`${'ABCDE'[j]})  ${alternativa}`,9.8,false,7,1.5));
+                    y+=8;
+                }
+                pdf.setFont('helvetica','italic');pdf.setFontSize(8.2);pdf.setTextColor(100,116,139);
+                reservar(14);
+                pdf.text('Material de práctica creado con IA. No es oficial ni está avalado por el DEMRE.',m,y);
+                return advertenciasImagenes;
+            };
+            const descargarEnsayo = async (modoSalida='descargar') => {
+                if(!listo || (listo.modo!=='ia' && !documentoRef.current) || (listo.modo==='preguntas' && !marcasRef.current[listo.cantidad])) {
+                    setEstadoExportacionPAES({ tipo:'error', texto:'El ensayo aún no está preparado. Genera primero las preguntas y vuelve a intentarlo.' });
+                    return;
+                }
+                setEstadoExportacionPAES({ tipo:'', texto:'' });
+                setEnProceso(true); setProgresoReal(null);
+                try {
+                    setGenerando('Preparando el cuadernillo y sus estímulos visuales…');
+                    const documento=documentoRef.current;
+                    const marcas=marcasRef.current;
+                    const pdf=obtenerJsPDF();
+                    if (listo.modo==='ia') {
+                        validarPreguntasPAESIA();
+                        prepararPortada(pdf,'PREGUNTAS ORIGINALES DE PRÁCTICA · IA');
+                        const advertencias = await agregarPreguntasOriginalesPDF(pdf);
+                        if(modoSalida==='vista') {
+                            const nuevoURL=URL.createObjectURL(pdf.output('blob'));
+                            setVistaPreviaPAES(nuevoURL);
+                        } else {
+                            pdf.save(`PAES_Beta_${prueba}_${preguntasIA.length}_preguntas_originales_IA.pdf`);
+                        }
+                        setEstadoExportacionPAES(advertencias.length
+                            ? {tipo:'advertencia',texto:`El archivo se generó, pero no fue posible incorporar las imágenes de las preguntas ${advertencias.join(', ')}. Aparecen señaladas dentro del PDF. Reemplázalas antes de aplicar la evaluación.`}
+                            : {tipo:'exito',texto:modoSalida==='vista'?'Vista previa del ensayo creada correctamente.':'PDF generado. Revisa la carpeta de descargas de tu navegador.'});
+                        return;
+                    }
+                    prepararPortada(pdf,'CUADERNILLO DEL ESTUDIANTE');
+                    if (listo.modo==='aleatorias') {
+                        await descargarEnsayoAleatorio(pdf,documento);
+                        if(modoSalida==='vista') {
+                            const url=URL.createObjectURL(pdf.output('blob'));
+                            setVistaPreviaPAES(url);
+                        } else {
+                            pdf.save(`PAES_Beta_${prueba}_${listo.cantidad}_preguntas_aleatorias_estudiante.pdf`);
+                        }
+                        return;
+                    }
+                    const esManual=listo.modo==='paginas';
+                    const siguiente=esManual?null:marcas[listo.cantidad+1];
+                    const inicial=esManual?listo.inicio:(prueba==='lectora'?Math.min(actual.primeraPagina,marcas[1].paginaN):marcas[1].paginaN);
+                    const ultima=esManual?listo.termino:(siguiente?.paginaN || documento.numPages);
+                    let numeropaginas=0;
+                    for(let pag=inicial;pag<=ultima;pag++) {
+                        const pagina=await documento.getPage(pag);
+                        const v=pagina.getViewport({scale:1.45});
+                        let limite=v.height;
+                        if(siguiente && pag===siguiente.paginaN) {
+                            limite=Math.max(0,Math.floor((siguiente.y-10)*1.45));
+                            if(limite<85)break;
+                        }
+                        const canvas=document.createElement('canvas');
+                        canvas.width=Math.round(v.width);canvas.height=Math.round(v.height);
+                        const ctx=canvas.getContext('2d',{alpha:false});
+                        await pagina.render({canvasContext:ctx,viewport:v}).promise;
+                        let recorte=canvas;
+                        if(limite<v.height) {
+                            recorte=document.createElement('canvas');recorte.width=canvas.width;recorte.height=Math.max(1,Math.floor(limite));
+                            recorte.getContext('2d').drawImage(canvas,0,0,recorte.width,recorte.height,0,0,recorte.width,recorte.height);
+                        }
+                        pdf.addPage();
+                        const a=190,h=Math.min(277,recorte.height/recorte.width*a);
+                        pdf.addImage(recorte.toDataURL('image/jpeg',0.86),'JPEG',10,10,a,h,undefined,'FAST');
+                        numeropaginas++;
+                        setGenerando(`Componiendo páginas originales ${numeropaginas}…`);
+                        await new Promise(resolve=>setTimeout(resolve,0));
+                    }
+                    if(!numeropaginas)throw new Error('No fue posible recuperar las páginas correspondientes a las preguntas.');
+                    if(modoSalida==='vista') {
+                        const url=URL.createObjectURL(pdf.output('blob'));
+                        setVistaPreviaPAES(url);
+                    }else{
+                        pdf.save(`PAES_Beta_${prueba}_${esManual?'paginas_'+listo.inicio+'-'+listo.termino:listo.cantidad+'_preguntas'}_estudiante.pdf`);
+                    }
+                } catch(err){
+                    const detalle = err?.message || String(err);
+                    setEstadoExportacionPAES({tipo:'error',texto:`No se pudo crear el ensayo: ${detalle}`});
+                    setErrorCarga(`Error al exportar: ${detalle}`);
+                    console.error('Error exportando PAES Beta:',err);
+                }
+                finally{setEnProceso(false);setProgresoReal(null);setGenerando('');}
+            };
+            const hojaDeRespuestas = (docente=false) => {
+                if(!correcto)return;
+                if(docente && listo?.modo!=='ia' && documentoRef.current && (!fuenteComprobada || listo?.modo==='paginas')){
+                    setErrorCarga('La pauta docente solo se habilita cuando el PDF coincide con la prueba oficial 2027 y se verificó el número de preguntas.');return;
+                }
+                try {
+                    if (modoPreguntas==='ia') validarPreguntasPAESIA();
+                    if (modoPreguntas==='aleatorias' && (!listo || listo.modo!=='aleatorias')) {
+                        setErrorCarga('En modo aleatorio, primero debes generar el ensayo para que la hoja de respuestas use exactamente las mismas preguntas.');
+                        return;
+                    }
+                    const cantidadHoja = listo?.cantidad || total;
+                    const numerosOriginales = listo?.modo==='aleatorias' ? listo.seleccion : Array.from({length:cantidadHoja},(_,i)=>i+1);
+                    const pdf=obtenerJsPDF();
+                    pdf.setFillColor(30,41,59);pdf.rect(0,0,210,11,'F');
+                    pdf.setFont('helvetica','bold');pdf.setFontSize(16);pdf.setTextColor(15,23,42);
+                    pdf.text('PAES (Beta) · HOJA DE RESPUESTAS',14,24);
+                    pdf.setFontSize(10.5);pdf.setFont('helvetica','normal');pdf.setTextColor(71,85,105);
+                    pdf.text(actual.titulo + '  /  Admisión 2027',14,33);
+                    pdf.text(`${cantidadHoja} preguntas ${listo?.modo==='aleatorias'?'al azar':''} · ${docente?'PAUTA DOCENTE':'ESTUDIANTE'} · Ensayo no oficial`,14,40);
+                    pdf.setDrawColor(203,213,225);pdf.line(14,45,196,45);
+                    pdf.setFontSize(10);pdf.setTextColor(15,23,42);
+                    pdf.text('Nombre: _________________________________________________________',14,53);
+                    pdf.text('Curso: ___________________________       Fecha: _____________________',14,60);
+                    const columnas=4, filas=Math.ceil(cantidadHoja/columnas);
+                    const anchoColumna=46,baseY=76, altoFila=8.4;
+                    const letras='ABCDE'.slice(0,actual.alternativas);
+                    for(let i=0;i<cantidadHoja;i++){
+                        const n=i+1, original=numerosOriginales[i],col=Math.floor(i/filas),fila=i%filas;
+                        const x=11+col*anchoColumna,y=baseY+fila*altoFila;
+                        const esIA=listo?.modo==='ia';
+                        const esPiloto=!esIA && clave.piloto.includes(original);
+                        const esAnulada=!esIA && clave.anulada.includes(original);
+                        pdf.setFont('helvetica',esPiloto||esAnulada?'bold':'normal');pdf.setFontSize(9.3);
+                        pdf.setTextColor(30,41,59);
+                        pdf.text(String(n).padStart(2,'0'),x,y);
+                        if(listo?.modo==='aleatorias'){
+                            pdf.setFontSize(6.1);pdf.setTextColor(100,116,139);
+                            pdf.text(`(${original})`,x+0.6,y+2.7);
+                        }
+                        for(let j=0;j<letras.length;j++){
+                            const cx=x+12+j*6.6,cy=y-2.8;
+                            pdf.setLineWidth(.35);pdf.setDrawColor(100,116,139);
+                            const marcada=docente && (esIA ? preguntasIA[i]?.correcta===j : clave.claves[original-1]===letras[j] && !esAnulada);
+                            if(marcada){pdf.setFillColor(79,70,229);pdf.circle(cx,cy,2.45,'FD');pdf.setTextColor(255,255,255);}
+                            else {pdf.circle(cx,cy,2.45,'S');pdf.setTextColor(71,85,105);}
+                            pdf.setFont('helvetica','bold');pdf.setFontSize(7.5);
+                            pdf.text(letras[j],cx,cy+1.1,{align:'center'});
+                        }
+                        if(docente && (esPiloto||esAnulada)){
+                            pdf.setFont('helvetica','bold');pdf.setTextColor(esAnulada?170:121,57,57);pdf.setFontSize(7.6);
+                            pdf.text(esAnulada?'×':'*',x+43,y-1);
+                        }
+                    }
+                    const finalY=Math.min(270,baseY+filas*altoFila+8);
+                    pdf.setDrawColor(226,232,240);pdf.line(14,finalY,196,finalY);
+                    pdf.setFont('helvetica','normal');pdf.setFontSize(8.6);pdf.setTextColor(51,65,85);
+                    const nota=listo?.modo==='ia'
+                        ? (docente?'Clave de preguntas originales generadas con IA; revisadas y ajustables por el docente. No procede del clavijero DEMRE.':'Ensayo de práctica original generado con IA. Marca una alternativa por pregunta.')
+                        : docente ? 'Clave correspondiente al número ORIGINAL entre paréntesis, según clavijero DEMRE 2027. * Piloto (no puntúa en prueba oficial). × Pregunta anulada. No aplicar escala PAES oficial a ensayos parciales.' : listo?.modo==='aleatorias' ? 'Responde con los números de este ensayo (01, 02…). El número entre paréntesis es la pregunta original DEMRE, solo como referencia.' : 'Rellena completamente una celdilla por pregunta. Para este ensayo de práctica utiliza lápiz de grafito. No escribas fuera de los espacios.';
+                    pdf.text(pdf.splitTextToSize(nota,180),14,Math.min(278,finalY+6));
+                    pdf.setFontSize(7.8);pdf.setTextColor(100,116,139);
+                    pdf.text(listo?.modo==='ia'?'Respuestas redactadas con IA y editables por el docente · Material independiente.':'Fuente de claves: DEMRE (2026). PAES de Invierno '+actual.titulo+' - Admisión 2027.',14,287);
+                    pdf.save(`PAES_Beta_${prueba}${listo?.modo==='aleatorias'?'_aleatorio':listo?.modo==='ia'?'_IA_original':''}_hoja_${docente?'docente_claves':'estudiante_blanco'}.pdf`);
+                }catch(err){setErrorCarga(`No se pudo crear la hoja de respuestas: ${err.message||err}`);}
+            };
+
+            return <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                <section className="rounded-3xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+                    <div className="bg-slate-900 text-white px-6 sm:px-9 py-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 h-full w-36 bg-indigo-500/10 rotate-12 translate-x-10"></div>
+                        <div className="relative z-10 flex items-start justify-between gap-4 flex-wrap">
+                            <div><span className="text-[11px] font-black tracking-[.2em] text-indigo-300">INSTRUMENTO DE EVALUACIÓN Nº 5</span>
+                                <h2 className="text-3xl font-black mt-2">PAES <span className="text-indigo-300">(Beta)</span></h2>
+                                <p className="text-slate-300 text-sm mt-2 max-w-2xl leading-relaxed">Ensayos basados en las pruebas difundidas por el DEMRE · Proceso de Admisión 2027. Preguntas originales, gráficos y textos conservados desde el PDF de origen.</p>
+                            </div><span className="rounded-full border border-indigo-400/50 text-indigo-200 px-3 py-1.5 text-[11px] font-bold">Uso pedagógico no comercial</span>
+                        </div>
+                    </div>
+                    <div className="p-6 sm:p-9 space-y-6">
+                        <div className="grid sm:grid-cols-[1fr_160px] gap-4 items-end">
+                            <label className="block"><span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Prueba PAES</span>
+                                <select value={prueba} onChange={e=>cambiarPrueba(e.target.value)} className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none">
+                                    {Object.entries(PAES_PRUEBAS).map(([codigo,item])=><option key={codigo} value={codigo}>{item.titulo}</option>)}
+                                </select>
+                            </label>
+                            <label className="block"><span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cantidad de preguntas</span>
+                                <input type="number" min="1" max={modoPreguntas==='ia'?25:actual.max} step="1" value={cantidad} onChange={e=>cambiarCantidad(e.target.value)} className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3.5 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"/>
+                            </label>
+                        </div>
+                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 space-y-2">
+                            <div className="flex flex-wrap gap-3 items-center">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-900">Selección de preguntas</span>
+                                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="radio" name="paes-modo-preguntas" checked={modoPreguntas==='primeras'} onChange={()=>cambiarModoPreguntas('primeras')} className="accent-indigo-600"/> Primeras preguntas</label>
+                                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="radio" name="paes-modo-preguntas" checked={modoPreguntas==='aleatorias'} onChange={()=>cambiarModoPreguntas('aleatorias')} className="accent-indigo-600"/> Preguntas al azar</label>
+                                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="radio" name="paes-modo-preguntas" checked={modoPreguntas==='ia'} onChange={()=>cambiarModoPreguntas('ia')} className="accent-indigo-600"/> Preguntas originales con IA</label>
+                            </div>
+                            <p className="text-xs text-slate-600 leading-relaxed">{modoPreguntas==='ia'?'Gemini creará preguntas inéditas para practicar habilidades similares a la PAES, sin copiar preguntas DEMRE ni consultar el PDF oficial. Requiere tu API Key y revisión docente antes de aplicarlas.':modoPreguntas==='aleatorias'?'Seleccionaremos únicamente preguntas numeradas con alternativas verificadas, evitando portada, indicaciones y preguntas anuladas. Las claves coincidirán con los números originales; pulsa «Generar ensayo» para otra selección.':'Se conservarán las primeras preguntas reales y sus estímulos originales; las indicaciones iniciales del PDF no se incluirán como preguntas.'}</p>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 flex-wrap text-sm text-slate-500">
+                            <span>{modoPreguntas==='ia'?'Práctica original con IA · máximo 25 preguntas':'PAES de Invierno 2026 · Admisión 2027 · Máximo '+actual.max+' preguntas'}</span>
+                            <a href={actual.fuente} target="_blank" rel="noopener noreferrer" className="text-indigo-700 font-bold underline underline-offset-2">Ver publicación oficial DEMRE</a>
+                        </div>
+                        {modoPreguntas==='ia' && <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-4 space-y-3">
+                            <p className="font-black text-violet-900 text-sm flex items-center gap-2"><Sparkles size={16}/> Configuración de preguntas originales</p>
+                            <div className="grid sm:grid-cols-[1fr_170px] gap-3">
+                                <label className="text-xs font-bold text-slate-700">Tema o habilidad (opcional)<input value={temaIA} onChange={e=>setTemaIA(e.target.value)} placeholder="Ej.: proporciones, inferencias, energía…" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 bg-white text-sm font-normal" /></label>
+                                <label className="text-xs font-bold text-slate-700">Dificultad<select value={dificultadIA} onChange={e=>setDificultadIA(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 bg-white text-sm font-normal"><option value="básica">Básica</option><option value="intermedia">Intermedia</option><option value="avanzada">Avanzada</option></select></label>
+                            </div>
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 rounded-lg border border-violet-200 bg-white px-3 py-3"><input type="checkbox" checked={usarImagenesIA} onChange={e=>{const activo=e.target.checked;setUsarImagenesIA(activo);if(activo) setCantidadImagenesIA(Math.min(Number(cantidad)||1, Math.max(1, Number(cantidadImagenesIA)||1)));}} className="accent-violet-600"/> Incluir apoyos visuales en algunas preguntas generadas</label>
+                            {usarImagenesIA && <div className="grid sm:grid-cols-[180px_1fr] gap-3 items-start"><label className="text-xs font-bold text-slate-700">Preguntas con imagen<input type="number" min="1" max={Math.max(1, Number(cantidad)||1)} step="1" value={cantidadImagenesIA} onChange={e=>setCantidadImagenesIA(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 bg-white text-sm font-normal" /></label><p className="text-xs text-violet-800 leading-relaxed">La IA intentará añadir imágenes pedagógicas simples y legibles, como esquemas, diagramas, tablas o gráficos, solo cuando aporten al razonamiento de la pregunta.</p></div>}
+                            <p className="text-xs text-violet-800">Máximo 25 preguntas por generación IA. Estas preguntas son de práctica y no forman parte de pruebas oficiales ni cuentan con un puntaje PAES validado.</p>
+                        </div>}
+                        {modoPreguntas!=='ia' && <div className={`rounded-2xl border-2 border-dashed p-4 sm:p-5 space-y-3 transition-colors ${arrastrandoPDF ? 'border-indigo-500 bg-indigo-100' : 'border-indigo-200 bg-indigo-50/40'}`}
+                             onDragEnter={e=>{e.preventDefault();setArrastrandoPDF(true);}}
+                             onDragOver={e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';setArrastrandoPDF(true);}}
+                             onDragLeave={e=>{e.preventDefault();setArrastrandoPDF(false);}}
+                             onDrop={e=>{e.preventDefault();setArrastrandoPDF(false);if(!enProceso){const file=e.dataTransfer.files?.[0];if(file)cargarPDFLocal({target:{files:[file],value:''}});}}}>
+                            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                                <div className="flex items-start gap-3"><div className="rounded-xl bg-white p-2.5 text-indigo-700"><Upload size={21}/></div>
+                                    <div><p className="font-black text-slate-800 text-sm">1. Carga tu prueba PAES descargada</p><p className="text-xs text-slate-500 mt-1 leading-relaxed">Selecciona el PDF en tu equipo o arrástralo aquí. Se procesará sin depender del acceso automático al sitio del DEMRE.</p></div>
+                                </div>
+                            </div>
+                            <input ref={archivoRef} type="file" accept=".pdf,application/pdf" disabled={enProceso} onChange={cargarPDFLocal} aria-label="Seleccionar PDF de prueba PAES desde mi equipo" className="block w-full min-w-0 text-sm text-slate-700 rounded-lg border border-indigo-200 bg-white p-2 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2.5 file:font-bold file:text-white hover:file:bg-indigo-700 disabled:opacity-50 cursor-pointer" />
+                            {archivoNombre && <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 flex flex-wrap items-center gap-2 text-xs text-slate-700"><FileText size={14}/><span className="font-semibold break-all">{archivoNombre}</span><span className="text-slate-400">{paginasDocumento ? `· ${paginasDocumento} páginas` : ''}</span></div>}
+                            {avisoArchivo && <p className="text-xs text-slate-600 leading-relaxed">{avisoArchivo}</p>}
+                        </div>}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                            <div><p className="text-sm font-bold text-slate-800">{modoPreguntas==='ia'?'Generar preguntas originales con IA':`2. Generar ensayo ${modoPreguntas==='aleatorias'?'al azar':''}`}</p><p className="text-xs text-slate-500 mt-1">{modoPreguntas==='ia'?(usarImagenesIA?'Se generarán preguntas nuevas con algunos apoyos visuales pedagógicos. Revisa la precisión del contenido, las alternativas y cada imagen antes de imprimir.':'Se generarán preguntas nuevas sin subir cuadernillos al servicio. Revisa su precisión y las alternativas antes de imprimir.'):'Con un PDF cargado, usa ese archivo. Si aún no cargaste uno, se intentará descargar desde DEMRE (puede bloquearse por seguridad del navegador).'}</p></div>
+                            <button type="button" onClick={generarEnsayo} disabled={enProceso || !correcto} className="shrink-0 flex gap-2 justify-center items-center rounded-xl px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-sm font-bold shadow-sm">
+                                {enProceso?<Loader2 size={17} className="animate-spin"/>:modoPreguntas==='ia'?<Sparkles size={17}/>:<BookOpen size={17}/>} {enProceso?'Procesando…':modoPreguntas==='ia'?'Generar preguntas IA':documentoRef.current?'Volver a preparar':'Generar ensayo'}
+                            </button>
+                        </div>
+                        {modoPreguntas!=='ia' && seleccionManual && paginasDocumento>0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5 space-y-3">
+                            <h3 className="font-black text-amber-900 text-sm">Seleccionar páginas manualmente</h3><p className="text-xs text-amber-900 leading-relaxed">El PDF está cargado, pero la numeración no se pudo localizar con fiabilidad. Selecciona las páginas que contienen las preguntas deseadas. Comprueba el ensayo exportado antes de utilizarlo.</p>
+                            <div className="grid grid-cols-2 gap-3"><label className="text-xs text-slate-700 font-bold">Página inicial<input aria-label="Página inicial del ensayo" type="number" min="1" max={paginasDocumento} value={paginaInicio} onChange={e=>setPaginaInicio(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-lg bg-white px-3 py-2"/></label><label className="text-xs text-slate-700 font-bold">Página final<input aria-label="Página final del ensayo" type="number" min="1" max={paginasDocumento} value={paginaTermino} onChange={e=>setPaginaTermino(e.target.value)} className="mt-1 block w-full border border-slate-200 rounded-lg bg-white px-3 py-2"/></label></div>
+                            <button type="button" onClick={prepararPorPaginas} className="w-full rounded-xl bg-amber-800 hover:bg-amber-900 text-white px-4 py-3 font-bold text-sm">Preparar ensayo con estas páginas</button>
+                        </div>}
+                        {enProceso && <div className="ae-loading-panel" role="status" aria-live="polite" aria-label="Procesamiento de prueba PAES en curso">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="ae-processing-visual" aria-hidden="true"><FileText size={31}/></div>
+                                <div className="min-w-0 flex-1"><div className="flex gap-2 items-center mb-1"><Loader2 size={16} className="animate-spin text-indigo-600"/><span className="font-black text-sm text-indigo-950">Preparando tu ensayo PAES</span></div>
+                                    <p className="text-xs leading-relaxed text-indigo-800">{generando || 'Procesando archivo y recursos visuales…'}</p>
+                                    <p className="text-[11px] leading-relaxed text-slate-500 mt-1">Estamos conservando las imágenes, los gráficos y el formato de la prueba original.</p>
+                                </div>
+                            </div>
+                            <div className={`ae-progress-track ${progresoReal !== null ? 'ae-determinate' : ''}`} aria-hidden="true">{progresoReal !== null && <div style={{width:`${progresoReal}%`,height:'100%',borderRadius:'999px',background:'#4f46e5',position:'relative',zIndex:1}} />}</div>
+                            <div className="text-[11px] text-slate-500 mt-2">{progresoReal !== null ? `Descarga del documento: ${progresoReal}%` : 'Analizando el documento. Esta animación indica actividad, no un porcentaje estimado.'}</div>
+                        </div>}
+                        {errorCarga && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 leading-relaxed"><p className="font-bold">{documentoRef.current?'Revisión necesaria para preparar el ensayo':'No fue posible abrir el PDF automáticamente'}</p><p className="mt-2">{errorCarga}</p><div className="flex flex-wrap items-center gap-3 mt-4"><a href={actual.pdf} target="_blank" rel="noopener noreferrer" className="text-amber-900 underline font-bold">Consultar PDF en DEMRE</a><button type="button" onClick={()=>archivoRef.current?.click()} disabled={enProceso} className="bg-white px-3 py-2 rounded-lg border border-amber-300 font-bold flex items-center gap-2"><Upload size={15}/> Elegir otro PDF</button></div></div>}
+                    </div>
+                </section>
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7 shadow-sm">
+                    <div className="flex gap-3 items-start mb-4"><div className="rounded-xl bg-indigo-50 text-indigo-700 p-3"><FileText size={20}/></div><div><h3 className="font-black text-slate-900 text-lg">Hojas de respuestas</h3><p className="text-xs text-slate-500 mt-1">{modoPreguntas==='ia' ? 'Se generan con las preguntas inéditas y las respuestas revisables del docente. No proceden del clavijero DEMRE.' : modoPreguntas==='aleatorias' ? 'Se habilitan al generar un ensayo aleatorio; contienen exactamente las preguntas seleccionadas, con sus claves originales.' : `Disponibles para las primeras ${correcto?total:'—'} preguntas de la prueba seleccionada. La pauta se basa en el clavijero DEMRE publicado para Admisión 2027.`}</p></div></div>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <button type="button" disabled={!correcto || enProceso || ((modoPreguntas==='aleatorias' || modoPreguntas==='ia') && listo?.modo!==modoPreguntas)} onClick={()=>hojaDeRespuestas(false)} className="rounded-xl bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 p-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"><FileText size={18}/> Estudiante · hoja en blanco</button>
+                        <button type="button" disabled={!correcto || enProceso || ((modoPreguntas==='aleatorias' || modoPreguntas==='ia') && listo?.modo!==modoPreguntas) || (modoPreguntas!=='ia' && !!documentoRef.current && (!fuenteComprobada || listo?.modo==='paginas'))} onClick={()=>hojaDeRespuestas(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white p-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"><CheckCircle2 size={18}/> Docente · con claves</button>
+                    </div>
+                    {modoPreguntas!=='ia' && <a href={actual.clavijero} target="_blank" rel="noopener noreferrer" className="inline-block mt-3 text-xs text-indigo-700 font-bold underline underline-offset-2">Consultar clavijero original del DEMRE</a>}
+                </section>
+                {listo && <section className="rounded-3xl border border-emerald-200 bg-white p-6 sm:p-8 shadow-sm space-y-5">
+                    <div className="flex items-start gap-3"><div className="bg-emerald-100 text-emerald-700 rounded-2xl p-3"><CheckCircle2 size={23}/></div>
+                        <div><h3 className="text-xl font-black text-slate-900">Ensayo preparado</h3><p className="text-sm text-slate-600 mt-1">{listo.modo==='ia'?<>Se generaron <b>{preguntasIA.length} preguntas originales con IA</b>{preguntasIA.some(q=>q.imagenSrc)?<>; <b>{preguntasIA.filter(q=>q.imagenSrc).length}</b> incluyen apoyo visual</>:null}. No son preguntas del DEMRE; revisa su pertinencia curricular, alternativas, imágenes y respuestas correctas antes de aplicarlas.</>:listo.modo==='paginas'?<>Has seleccionado las páginas <b>{listo.inicio} a {listo.termino}</b>. Revisa que correspondan a las preguntas que necesitas.</>:listo.modo==='aleatorias'?<>Se eligieron <b>{listo.cantidad} preguntas al azar</b> entre {listo.disponibles} preguntas delimitadas del PDF. Se presentan en el orden original para mantener la lectura. Las preguntas originales son: <b>{listo.seleccion.join(', ')}</b>.</>:<>Se localizaron {listo.detectados} preguntas en el PDF. El ensayo incluirá las preguntas <b>1 a {listo.cantidad}</b>, junto con sus estímulos y lecturas anteriores.</>}</p></div>
+                    </div>
+                    {listo.modo==='ia' && <details className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4 sm:p-5" open>
+                        <summary className="cursor-pointer text-sm font-black text-violet-900">Revisar y editar preguntas IA y sus respuestas</summary>
+                        <div className="space-y-4 mt-4">{preguntasIA.map((q,i)=><div key={q.id} className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                            <p className="font-black text-xs text-slate-600">PREGUNTA {i+1} {q.habilidad?`· ${q.habilidad}`:''}</p>
+                            <label className="block text-xs font-semibold text-slate-600">Contexto / estímulo (opcional)<textarea value={q.contexto} onChange={e=>actualizarPreguntaPAESIA(q.id,{contexto:e.target.value})} className="block mt-1 p-2.5 border border-slate-200 rounded-lg w-full min-h-[52px] text-sm"/></label>
+                            <label className="block text-xs font-semibold text-slate-600">Enunciado<textarea value={q.enunciado} onChange={e=>actualizarPreguntaPAESIA(q.id,{enunciado:e.target.value})} className="block mt-1 p-2.5 border border-slate-200 rounded-lg w-full min-h-[58px] text-sm"/></label>
+                            <div className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50">{cargandoImagenPAES===q.id ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} {cargandoImagenPAES===q.id ? 'Cargando imagen…' : q.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" disabled={!!cargandoImagenPAES || !!generandoImagenPAES} onChange={e=>manejarImagenManualPAESIA(q.id,e)} /></label><button type="button" disabled={!!cargandoImagenPAES || !!generandoImagenPAES} onClick={async()=>{try{await generarImagenPreguntaPAESIA(q.id);}catch(err){setErrorCarga(err.message||String(err));}}} className="inline-flex items-center gap-2 bg-violet-100 text-violet-800 hover:bg-violet-200 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40">{generandoImagenPAES===q.id ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} {generandoImagenPAES===q.id ? 'Generando imagen…' : q.imagenSrc && q.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{q.imagenSrc && <button type="button" onClick={()=>quitarImagenPAESIA(q.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{(generandoImagenPAES===q.id || cargandoImagenPAES===q.id) && <IndicadorImagenEnProceso mensaje={cargandoImagenPAES===q.id ? 'Cargando y preparando imagen…' : 'Generando apoyo visual para la pregunta…'}/>} {q.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={q.imagenSrc} alt={q.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{q.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{q.descripcionImagen}</p>}</div>}<label className="block text-xs font-semibold text-slate-600">Texto alternativo / descripción visual<textarea value={q.imagenAlt || ''} onChange={e=>actualizarPreguntaPAESIA(q.id,{imagenAlt:e.target.value})} className="block mt-1 p-2.5 border border-slate-200 rounded-lg w-full min-h-[48px] text-sm" placeholder="Describe brevemente qué muestra la imagen"/></label></div>
+                            <div className="grid sm:grid-cols-2 gap-2">{q.alternativas.map((alt,j)=><label key={j} className="block text-xs font-semibold text-slate-600">Alternativa {'ABCDE'[j]}<input value={alt} onChange={e=>actualizarPreguntaPAESIA(q.id,{alternativas:q.alternativas.map((x,k)=>k===j?e.target.value:x)})} className="block mt-1 p-2.5 border border-slate-200 rounded-lg w-full text-sm"/></label>)}</div>
+                            <label className="flex items-center gap-3 text-xs font-semibold text-emerald-800">Alternativa correcta <select value={q.correcta} onChange={e=>actualizarPreguntaPAESIA(q.id,{correcta:Number(e.target.value)})} className="p-2 border border-emerald-200 bg-white rounded-lg">{q.alternativas.map((_,j)=><option value={j} key={j}>{'ABCDE'[j]}</option>)}</select></label>
+                            <label className="block text-xs font-semibold text-slate-600">Fundamento docente<textarea value={q.justificacion} onChange={e=>actualizarPreguntaPAESIA(q.id,{justificacion:e.target.value})} className="block mt-1 p-2.5 border border-slate-200 rounded-lg w-full min-h-[48px] text-sm"/></label>
+                        </div>)}</div>
+                        <p className="text-xs text-violet-800 mt-3">La hoja docente reflejará los cambios de alternativas y claves. El cuadernillo del estudiante sí incluirá las imágenes de apoyo que dejes activas, pero no mostrará las respuestas correctas.</p>
+                    </details>}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button type="button" disabled={enProceso} onClick={()=>descargarEnsayo('vista')} className="rounded-xl bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 p-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">{enProceso?<Loader2 size={18} className="animate-spin"/>:<Eye size={18}/>} Revisar ensayo completo</button>
+                        <button type="button" disabled={enProceso} onClick={()=>descargarEnsayo('descargar')} className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white p-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">{enProceso?<Loader2 size={18} className="animate-spin"/>:<FileText size={18}/>} PDF · Ensayo estudiante</button>
+                    </div>
+                    {enProceso && <div role="status" className="flex items-center gap-2 text-sm font-bold text-indigo-700 bg-indigo-50 rounded-xl border border-indigo-100 p-3"><Loader2 size={16} className="animate-spin"/>{generando || 'Generando archivo PDF...'}</div>}
+                    {!!estadoExportacionPAES.texto && <div role="alert" aria-live="polite" className={`rounded-xl border p-3 text-sm leading-relaxed ${estadoExportacionPAES.tipo==='error'?'bg-red-50 border-red-200 text-red-800':estadoExportacionPAES.tipo==='advertencia'?'bg-amber-50 border-amber-200 text-amber-900':'bg-emerald-50 border-emerald-200 text-emerald-900'}`}><strong>{estadoExportacionPAES.tipo==='error'?'Error de exportación':estadoExportacionPAES.tipo==='advertencia'?'Revisión necesaria':'Exportación completada'}:</strong> {estadoExportacionPAES.texto}</div>}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600 leading-relaxed">
+                        <b>Importante:</b> {listo.modo==='ia'?'Las preguntas generadas por IA son originales y no tienen certificación DEMRE. El docente debe revisar su contenido, sus claves, su dificultad y también la pertinencia de cada apoyo visual antes de aplicarlas.':'El modo aleatorio identifica y elimina encabezados de forma y números de página repetidos, y conserva márgenes de seguridad para los recortes.'} Si elegiste páginas manualmente, revisa que el rango incluya exactamente las preguntas y estímulos deseados: el sistema no garantiza el número de preguntas en ese caso. Las hojas de respuestas con clave solo deben usarse al confirmar la correspondencia con la prueba oficial. Este ensayo parcial no equivale a un puntaje PAES oficial.
+                    </div>
+                    {revision && <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={revision} onChange={e=>setRevision(e.target.checked)} className="mt-0.5 accent-indigo-600"/> He revisado la cantidad de preguntas detectadas y cotejaré el recorte del ensayo antes de aplicarlo.</label>}
+                </section>}
+                {vistaPreviaPAES && <div className="fixed inset-0 z-[260] bg-slate-950/75 p-3 sm:p-6 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Vista previa del ensayo PAES">
+                    <div className="w-full max-w-5xl h-[94vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3"><div><p className="font-black text-slate-900">Vista previa del ensayo</p><p className="text-xs text-slate-500">Comprueba que cada pregunta y sus alternativas estén completas antes de aplicarlo.</p></div><button type="button" onClick={()=>setVistaPreviaPAES('')} className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 p-2" aria-label="Cerrar vista previa"><XIcon size={19}/></button></div>
+                        <iframe title="Vista previa PDF de PAES" src={vistaPreviaPAES} className="w-full flex-1 border-0 bg-slate-100"/>
+                    </div>
+                </div>}
+                <div className="px-1 text-xs text-slate-500 leading-relaxed"><p>Fuente: DEMRE (2026), PAES de Invierno de {actual.titulo}, Proceso de Admisión 2027. Esta herramienta es independiente y no tiene afiliación con el DEMRE. Respeta las restricciones de reproducción y distribución que acompañan a los cuadernillos oficiales; verifica las condiciones de uso aplicables a tu institución. Cuando trabajas con PDF, el documento se analiza en tu navegador y no se envían preguntas oficiales a Gemini. El modo IA solo utiliza el tipo de prueba y los temas que escribas.</p></div>
+            </div>;
+        };
+
+
         const App = () => {
             const [showInitialPopup, setShowInitialPopup] = useState(true);
             const [autoGuardado, setAutoGuardado] = useState(() => { try { return localStorage.getItem('ae_autoguardado_v7') !== 'off'; } catch { return false; } });
@@ -350,6 +1555,7 @@
             const [isExportingMultiple, setIsExportingMultiple] = useState(false);
             const [vistaMultipleOpen, setVistaMultipleOpen] = useState(false);
             const [regenerandoPregunta, setRegenerandoPregunta] = useState(null);
+            const [cargandoImagenPregunta, setCargandoImagenPregunta] = useState(null);
             const [respuestasMultiple, setRespuestasMultiple] = useState({});
             const [puntosDesarrolloMultiple, setPuntosDesarrolloMultiple] = useState({});
             const [alumnoMultiple, setAlumnoMultiple] = useState('');
@@ -1013,12 +2219,15 @@ Devuelve ÚNICAMENTE un objeto JSON válido: { "objetivo": "...", "indicadores":
                     showAlert('La imagen debe pesar menos de 6 MB.');
                     return;
                 }
+                setCargandoImagenPregunta(id);
                 try {
                     const src = await leerImagenDataURL(file);
+                    // Esperar a decodificar para que el indicador no desaparezca antes de ver la imagen.
+                    await new Promise((resolve,reject)=>{const img=new Image();img.onload=resolve;img.onerror=()=>reject(new Error('No se pudo interpretar la imagen seleccionada.'));img.src=src;});
                     actualizarPreguntaConImagen(tipo, id, { imagenSrc: src, origenImagen: 'manual' });
                 } catch (error) {
                     showAlert(error.message || 'No se pudo cargar la imagen.');
-                }
+                } finally { setCargandoImagenPregunta(null); }
             };
             const quitarImagenPregunta = (tipo, id) => actualizarPreguntaConImagen(tipo, id, { imagenSrc: '', imagenAlt: '', descripcionImagen: '', origenImagen: '' });
             const generarImagenPreguntaIA = async (tipo, id) => {
@@ -2627,7 +3836,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
             });
             const aplicarSesion = data => {
                 if (!data || typeof data !== 'object') return;
-                if (['rubrica','cotejo','escala','multiple'].includes(data.tipoInstrumento)) {
+                if (['rubrica','cotejo','escala','multiple','paes'].includes(data.tipoInstrumento)) {
                     setTipoInstrumento(data.tipoInstrumento);
                     setActiveTab(`config_${data.tipoInstrumento}`);
                 }
@@ -2698,7 +3907,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 reader.onload = event => {
                     try {
                         const data = JSON.parse(event.target.result);
-                        if (!data || typeof data !== 'object' || !['rubrica','cotejo','escala','multiple'].includes(data.tipoInstrumento) || !Array.isArray(data.resultados || [])) throw new Error('Archivo JSON incompatible');
+                        if (!data || typeof data !== 'object' || !['rubrica','cotejo','escala','multiple','paes'].includes(data.tipoInstrumento) || !Array.isArray(data.resultados || [])) throw new Error('Archivo JSON incompatible');
                         setConfirmState({
                             message: `¿Cargar esta sesión? Se reemplazarán las evaluaciones y los instrumentos abiertos por los del respaldo.\n\n${data.resultados?.length || 0} evaluaciones guardadas · ${data.tipoInstrumento}.`,
                             onConfirm: () => { aplicarSesion(data); setConfirmState(null); showAlert('La sesión se restauró correctamente.'); }
@@ -2739,7 +3948,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                 
                 const data = resultados.map(res => ({
                     "Estudiante": res.alumno, "Fecha": res.fecha, "Instrumento": res.instrumento,
-                    "Tipo de Instrumento": res.tipoInstrumento === 'rubrica' ? 'Rúbrica' : (res.tipoInstrumento === 'cotejo' ? 'Lista de Cotejo' : res.tipoInstrumento === 'multiple' ? 'Selección Multiple' : 'Escala de Apreciación'),
+                    "Tipo de Instrumento": res.tipoInstrumento === 'rubrica' ? 'Rúbrica' : (res.tipoInstrumento === 'cotejo' ? 'Lista de Cotejo' : res.tipoInstrumento === 'multiple' ? 'Selección Multiple' : res.tipoInstrumento === 'paes' ? 'PAES (Beta)' : 'Escala de Apreciación'),
                     "Puntaje Obtenido": res.puntaje, "Puntaje Máximo": res.maximo,
                     "Logro (%)": res.maximo > 0 ? Math.round((res.puntaje / res.maximo) * 100) : 0,
                     "Nota Final": parseFloat(res.nota.toFixed(1)), "Nivel Mineduc": res.nivel,
@@ -2790,6 +3999,11 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                     <button onClick={() => { setTipoInstrumento('multiple'); setActiveTab('config_multiple'); setShowInitialPopup(false); }} className="flex flex-col items-center gap-4 p-8 border-2 border-purple-100 hover:border-purple-500 hover:bg-purple-50 text-purple-900 rounded-2xl transition-all shadow-sm hover:shadow-md group">
                                         <div className="bg-purple-100 p-4 rounded-xl group-hover:scale-110 transition-transform"><BookText size={40} className="text-purple-600" /></div>
                                         <span className="font-bold text-lg">Selección Multiple</span>
+                                    </button>
+                                    <button onClick={() => { setTipoInstrumento('paes'); setActiveTab('config_paes'); setShowInitialPopup(false); }} className="flex flex-col items-center gap-4 p-8 border-2 border-sky-100 hover:border-sky-500 hover:bg-sky-50 text-sky-900 rounded-2xl transition-all shadow-sm hover:shadow-md group sm:col-span-2">
+                                        <div className="bg-sky-100 p-4 rounded-xl group-hover:scale-110 transition-transform"><GraduationCap size={40} className="text-sky-700" /></div>
+                                        <span className="font-bold text-lg">PAES (Beta)</span>
+                                        <span className="text-xs text-sky-700">Ensayos con material oficial publicado por DEMRE</span>
                                     </button>
                                 </div>
                             </div>
@@ -2972,7 +4186,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                     )}
 
                     <main className="flex-1 flex flex-col overflow-hidden">
-                        <header className="studio-header bg-white border-b border-neutral-200 px-8 pt-8 shrink-0 relative z-10">
+                        <header className="studio-header bg-white border-b border-neutral-200 px-8 pt-8 shrink-0 relative z-[80]">
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-start gap-4">
                                     <div>
@@ -2980,25 +4194,26 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                         <p className="text-sm text-neutral-500 mt-1">Crea instrumentos, corrige y genera reportes desde un solo lugar.</p>
                                     </div>
                                 </div>
-                                <div className="flex flex-col sm:flex-row gap-2 items-end sm:items-center"><select aria-label="Cambiar instrumento" value={tipoInstrumento} onChange={e=>{setTipoInstrumento(e.target.value);setActiveTab(`config_${e.target.value}`)}} className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-900 text-xs font-bold"><option value="rubrica">Rúbrica</option><option value="cotejo">Lista de Cotejo</option><option value="escala">Escala de Apreciación</option><option value="multiple">Selección Multiple</option></select><span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shrink-0"><CheckCircle2 size={14} /> Datos locales</span></div>
+                                <div className="flex flex-col sm:flex-row gap-2 items-end sm:items-center"><select aria-label="Cambiar instrumento" value={tipoInstrumento} onChange={e=>{setTipoInstrumento(e.target.value);setActiveTab(`config_${e.target.value}`)}} className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-900 text-xs font-bold"><option value="rubrica">Rúbrica</option><option value="cotejo">Lista de Cotejo</option><option value="escala">Escala de Apreciación</option><option value="multiple">Selección Multiple</option><option value="paes">PAES (Beta)</option></select><span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shrink-0"><CheckCircle2 size={14} /> Datos locales</span></div>
                             </div>
 
-                            <nav className="flex gap-8 relative overflow-visible">
+                            <nav className="flex gap-8 relative z-[90] overflow-visible" aria-label="Navegación principal">
                                 <div className="relative overflow-visible" onMouseLeave={() => setIsInstrumentDropdownOpen(false)}>
-                                    <button onMouseEnter={() => setIsInstrumentDropdownOpen(true)} onClick={() => { setActiveTab(`config_${tipoInstrumento}`); setIsInstrumentDropdownOpen(!isInstrumentDropdownOpen); }} className={`pb-4 text-sm font-bold flex items-center gap-2 transition-all relative ${activeTab.startsWith('config') ? 'text-indigo-600' : 'text-neutral-400 hover:text-neutral-600'}`}>
+                                    <button type="button" aria-haspopup="menu" aria-expanded={isInstrumentDropdownOpen} onClick={() => { setActiveTab(`config_${tipoInstrumento}`); setIsInstrumentDropdownOpen(prev=>!prev); }} onKeyDown={e=>{if(e.key==='Escape')setIsInstrumentDropdownOpen(false)}} className={`pb-4 text-sm font-bold flex items-center gap-2 transition-all relative ${activeTab.startsWith('config') ? 'text-indigo-600' : 'text-neutral-400 hover:text-neutral-600'}`}>
                                         <FileSpreadsheet size={18}/><span>Instrumento</span><ChevronDown size={14} className={`transition-transform ${isInstrumentDropdownOpen ? 'rotate-180' : ''}`} />
                                         {activeTab.startsWith('config') && <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-600 rounded-full" />}
                                     </button>
                                     {isInstrumentDropdownOpen && (
-                                        <div className="absolute top-full left-0 mt-0 w-56 bg-white border border-neutral-200 shadow-xl rounded-xl z-50 flex flex-col py-2 animate-in fade-in slide-in-from-top-2">
+                                        <div className="ae-instrument-menu w-60 flex flex-col py-2" role="menu" aria-label="Elegir instrumento de evaluación" onKeyDown={e=>{if(e.key==='Escape'){setIsInstrumentDropdownOpen(false);e.stopPropagation()}}}>
                                             <button onClick={() => { setActiveTab('config_rubrica'); setTipoInstrumento('rubrica'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_rubrica' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><FileSpreadsheet size={16} /> Rúbrica</button>
                                             <button onClick={() => { setActiveTab('config_escala'); setTipoInstrumento('escala'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_escala' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><SlidersHorizontal size={16} /> Escala de Apreciación</button>
                                             <button onClick={() => { setActiveTab('config_cotejo'); setTipoInstrumento('cotejo'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_cotejo' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><ListTodo size={16} /> Lista de Cotejo</button>
                                             <button onClick={() => { setActiveTab('config_multiple'); setTipoInstrumento('multiple'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_multiple' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><BookText size={16} /> Selección Multiple</button>
+                                            <button onClick={() => { setActiveTab('config_paes'); setTipoInstrumento('paes'); setIsInstrumentDropdownOpen(false); }} className={`px-4 py-3 text-sm font-bold flex items-center gap-3 transition-colors ${activeTab === 'config_paes' ? 'bg-indigo-50 text-indigo-700' : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'}`}><GraduationCap size={16} /> PAES (Beta)</button>
                                         </div>
                                     )}
                                 </div>
-                                <TabButton active={activeTab === 'evaluar'} onClick={() => setActiveTab('evaluar')} icon={<GraduationCap size={18}/>} label={tipoInstrumento==='multiple' ? 'Corregir Pruebas' : 'Evaluar Alumnos'} />
+                                {tipoInstrumento !== 'paes' && <TabButton active={activeTab === 'evaluar'} onClick={() => setActiveTab('evaluar')} icon={<GraduationCap size={18}/>} label={tipoInstrumento==='multiple' ? 'Corregir Pruebas' : 'Evaluar Alumnos'} />}
                                 <TabButton active={activeTab === 'reporte'} onClick={() => setActiveTab('reporte')} icon={<BarChart3 size={18}/>} label="Reporte Consolidado" badge={resultados.length} />
                                 <TabButton active={activeTab === 'instructivo'} onClick={() => setActiveTab('instructivo')} icon={<HelpCircle size={18}/>} label="Guía de Uso" />
                             </nav>
@@ -3024,7 +4239,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                                         <div className="relative z-10">
                                             <h2 className="text-3xl font-black mb-2">Guía de Uso Rápido</h2>
                                             <p className="text-indigo-200 max-w-2xl text-sm leading-relaxed">
-                                                Aprende a dominar el Asistente de Evaluación en 4 simples pasos. Optimiza tu tiempo, 
+                                                Aprende a dominar los instrumentos y el módulo PAES de práctica. Optimiza tu tiempo, 
                                                 evalúa en tiempo real y genera reportes automáticos alineados con el Decreto 67 de Mineduc.
                                             </p>
                                         </div>
@@ -3431,6 +4646,7 @@ Responde con texto claro, usa emojis en titles de cada sección, y no incluyas a
                             )}
 
                             {/* ====== PESTAÑA: SELECCIÓN MULTIPLE ====== */}
+                            {activeTab === 'config_paes' && tipoInstrumento === 'paes' && <PAESBeta />}
                             {activeTab === 'config_multiple' && (
                                 <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4">
                                     <div className="flex items-center gap-3">
@@ -3554,7 +4770,7 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                                         </div>
                                                         {p.correcta === null && <p role="status" className="text-xs font-semibold text-amber-700">Eliminaste la alternativa correcta. Selecciona una nueva respuesta antes de descargar.</p>}
                                                     </div>
-                                                    <div className="sm:pl-12 space-y-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Upload size={14}/> {p.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={e=>manejarImagenManualPregunta('seleccion', p.id, e)} /></label><button type="button" disabled={regenerandoPregunta===`img-${p.id}`} onClick={()=>generarImagenPreguntaIA('seleccion', p.id)} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 hover:bg-violet-100 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40"><Sparkles size={14}/> {p.imagenSrc && p.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{p.imagenSrc && <button type="button" onClick={()=>quitarImagenPregunta('seleccion', p.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{p.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{p.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{p.descripcionImagen}</p>}</div>}<div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Texto alternativo / descripción de la imagen</label><textarea value={p.imagenAlt || ''} onChange={e=>editarMultipleSeleccion(p.id,{imagenAlt:e.target.value})} placeholder="Describe brevemente la imagen o indica qué muestra" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[52px]"/></div></div>
+                                                    <div className="sm:pl-12 space-y-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50">{cargandoImagenPregunta===p.id ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} {cargandoImagenPregunta===p.id ? 'Cargando imagen…' : p.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" disabled={!!cargandoImagenPregunta} onChange={e=>manejarImagenManualPregunta('seleccion', p.id, e)} /></label><button type="button" disabled={!!regenerandoPregunta || cargandoImagenPregunta===p.id} onClick={()=>generarImagenPreguntaIA('seleccion', p.id)} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 hover:bg-violet-100 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40">{regenerandoPregunta===`img-${p.id}` ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} {regenerandoPregunta===`img-${p.id}` ? 'Generando imagen…' : p.imagenSrc && p.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{p.imagenSrc && <button type="button" onClick={()=>quitarImagenPregunta('seleccion', p.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{(regenerandoPregunta===`img-${p.id}` || cargandoImagenPregunta===p.id) && <IndicadorImagenEnProceso mensaje={cargandoImagenPregunta===p.id ? 'Cargando y preparando imagen…' : 'Generando imagen pedagógica con IA…'}/>} {p.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{p.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{p.descripcionImagen}</p>}</div>}<div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Texto alternativo / descripción de la imagen</label><textarea value={p.imagenAlt || ''} onChange={e=>editarMultipleSeleccion(p.id,{imagenAlt:e.target.value})} placeholder="Describe brevemente la imagen o indica qué muestra" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[52px]"/></div></div>
                                                     <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Justificación / pauta de respuesta (solo docente)</label><textarea value={p.explicacion || ''} onChange={e=>editarMultipleSeleccion(p.id,{explicacion:e.target.value})} placeholder="Explica por qué esta alternativa es la correcta" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[54px]"/></div>
                                                     <div className="sm:pl-12 flex flex-wrap items-center gap-3 justify-between"><label className="text-xs font-bold text-neutral-600 flex items-center gap-2">Puntaje de la pregunta <input type="number" min="0.5" step="0.5" aria-label={`Puntaje de selección ${i+1}`} value={p.puntaje ?? 1} onChange={e=>editarMultipleSeleccion(p.id,{puntaje:e.target.value})} className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg bg-white" /></label><span className="text-xs text-neutral-500">La respuesta correcta solo se incluirá en el PDF docente.</span></div>
                                                 </div>
@@ -3565,7 +4781,7 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                             {multipleDesarrollo.length===0 && <p className="text-sm text-neutral-400 italic bg-neutral-50 rounded-xl p-4">No hay preguntas de desarrollo. Genera preguntas con IA o agrégalas manualmente.</p>}
                                             <div className="space-y-5">{multipleDesarrollo.map((p,i)=>(<div key={p.id} className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
                                                 <div className="flex items-start gap-3"><div className="bg-indigo-100 text-indigo-700 rounded-lg px-3 py-2 text-xs font-black">{multipleSeleccion.length+i+1}</div><textarea aria-label={`Enunciado desarrollo ${i+1}`} value={p.enunciado} onChange={e=>editarMultipleDesarrollo(p.id,{enunciado:e.target.value})} placeholder="Escribe una pregunta abierta..." className="w-full p-3 bg-white border border-neutral-200 rounded-lg text-sm min-h-[70px]"/><div className="flex flex-col gap-1 shrink-0"><button type="button" disabled={i===0} onClick={()=>moverPreguntaMultiple('desarrollo',p.id,-1)} aria-label={`Subir pregunta de desarrollo ${i+1}`} title="Subir" className="text-slate-600 disabled:opacity-30 p-1 rounded">↑</button><button type="button" disabled={i===multipleDesarrollo.length-1} onClick={()=>moverPreguntaMultiple('desarrollo',p.id,1)} aria-label={`Bajar pregunta de desarrollo ${i+1}`} title="Bajar" className="text-slate-600 disabled:opacity-30 p-1 rounded">↓</button></div><button type="button" onClick={()=>duplicarPreguntaMultiple('desarrollo',p.id)} title="Duplicar pregunta" aria-label={`Duplicar pregunta de desarrollo ${i+1}`} className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg"><Plus size={17}/></button><button type="button" disabled={!!regenerandoPregunta} onClick={()=>regenerarPreguntaMultipleIA('desarrollo',p.id)} title="Regenerar esta pregunta con IA" aria-label={`Regenerar pregunta de desarrollo ${i+1}`} className="text-violet-600 hover:bg-violet-50 disabled:opacity-40 p-2 rounded-lg"><Sparkles size={17}/></button><button aria-label={`Eliminar pregunta de desarrollo ${i+1}`} title="Eliminar pregunta" onClick={()=>setMultipleDesarrollo(prev=>prev.filter(x=>x.id!==p.id))} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button></div>
-                                                <div className="sm:pl-12 space-y-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50"><Upload size={14}/> {p.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={e=>manejarImagenManualPregunta('desarrollo', p.id, e)} /></label><button type="button" disabled={regenerandoPregunta===`img-${p.id}`} onClick={()=>generarImagenPreguntaIA('desarrollo', p.id)} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 hover:bg-violet-100 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40"><Sparkles size={14}/> {p.imagenSrc && p.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{p.imagenSrc && <button type="button" onClick={()=>quitarImagenPregunta('desarrollo', p.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{p.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{p.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{p.descripcionImagen}</p>}</div>}<div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Texto alternativo / descripción de la imagen</label><textarea value={p.imagenAlt || ''} onChange={e=>editarMultipleDesarrollo(p.id,{imagenAlt:e.target.value})} placeholder="Describe brevemente la imagen o indica qué muestra" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[52px]"/></div></div>
+                                                <div className="sm:pl-12 space-y-3"><div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50">{cargandoImagenPregunta===p.id ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} {cargandoImagenPregunta===p.id ? 'Cargando imagen…' : p.imagenSrc ? 'Cambiar imagen' : 'Cargar imagen'}<input type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" disabled={!!cargandoImagenPregunta} onChange={e=>manejarImagenManualPregunta('desarrollo', p.id, e)} /></label><button type="button" disabled={!!regenerandoPregunta || cargandoImagenPregunta===p.id} onClick={()=>generarImagenPreguntaIA('desarrollo', p.id)} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 hover:bg-violet-100 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40">{regenerandoPregunta===`img-${p.id}` ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} {regenerandoPregunta===`img-${p.id}` ? 'Generando imagen…' : p.imagenSrc && p.origenImagen==='ia' ? 'Regenerar imagen IA' : 'Generar imagen IA'}</button>{p.imagenSrc && <button type="button" onClick={()=>quitarImagenPregunta('desarrollo', p.id)} className="inline-flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg text-xs font-bold"><Trash2 size={14}/> Quitar imagen</button>}</div>{(regenerandoPregunta===`img-${p.id}` || cargandoImagenPregunta===p.id) && <IndicadorImagenEnProceso mensaje={cargandoImagenPregunta===p.id ? 'Cargando y preparando imagen…' : 'Generando imagen pedagógica con IA…'}/>} {p.imagenSrc && <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={p.imagenSrc} alt={p.imagenAlt || 'Imagen de apoyo'} className="w-full max-h-56 object-contain rounded-xl bg-slate-50" />{p.descripcionImagen && <p className="text-xs text-slate-500 mt-2 text-center">{p.descripcionImagen}</p>}</div>}<div><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Texto alternativo / descripción de la imagen</label><textarea value={p.imagenAlt || ''} onChange={e=>editarMultipleDesarrollo(p.id,{imagenAlt:e.target.value})} placeholder="Describe brevemente la imagen o indica qué muestra" className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[52px]"/></div></div>
                                                 <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Respuesta esperada (solo docente)</label><textarea value={p.respuestaEsperada||''} onChange={e=>editarMultipleDesarrollo(p.id,{respuestaEsperada:e.target.value})} placeholder="Escribe la respuesta orientativa..." className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[75px]"/></div>
                                                 <div className="sm:pl-12"><label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Criterios o elementos clave (solo docente)</label><textarea value={p.criterios||''} onChange={e=>editarMultipleDesarrollo(p.id,{criterios:e.target.value})} placeholder="Un criterio por línea..." className="w-full p-2.5 bg-white border border-neutral-200 rounded-lg text-sm min-h-[75px]"/></div>
                                                 <div className="sm:pl-12"><label className="text-xs font-bold text-neutral-600 flex items-center gap-2">Puntaje de la pregunta <input type="number" min="0.5" step="0.5" aria-label={`Puntaje desarrollo ${i+1}`} value={p.puntaje ?? 5} onChange={e=>editarMultipleDesarrollo(p.id,{puntaje:e.target.value})} className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg bg-white" /></label></div>
@@ -3635,7 +4851,7 @@ Prof. Víctor Acevedo.`} className="w-full p-3 border border-neutral-200 rounded
                                     <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6"><label className="block text-xs font-bold text-slate-600 mb-2">Observación o retroalimentación (opcional)</label><textarea value={observacionMultiple} onChange={e=>setObservacionMultiple(e.target.value)} placeholder="Comentario para el reporte de este estudiante..." className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-24" /><div className="flex flex-wrap gap-3 justify-end mt-4"><button type="button" onClick={()=>setActiveTab('config_multiple')} className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600">Volver a editar</button><button type="button" onClick={guardarCorreccionMultiple} className="px-5 py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold inline-flex items-center gap-2"><Save size={16}/>{editingId?'Actualizar corrección':'Guardar corrección y nota'}</button></div></div>
                                 </div>
                             )}
-                            {activeTab === 'evaluar' && tipoInstrumento !== 'multiple' && (
+                            {activeTab === 'evaluar' && tipoInstrumento !== 'multiple' && tipoInstrumento !== 'paes' && (
                                 <div className="w-full animate-in fade-in slide-in-from-bottom-4">
                                     <div className="bg-white p-8 rounded-2xl border border-neutral-200 shadow-sm relative overflow-hidden">
                                         
